@@ -53,6 +53,31 @@ import Testing
         #expect(store.live.first?.cwd == "/tmp/resumed", "SessionStart updates cwd")
     }
 
+    @Test func forkSessionsAreNeverTracked() {
+        let store = SessionStore()
+        store.apply(event("SessionStart", "fork", sid: "fork1"))
+        #expect(store.live.isEmpty && store.history.isEmpty,
+                "a fork-born session is agent infrastructure, not a row")
+        store.apply(event("UserPromptSubmit", sid: "fork1"))
+        store.apply(event("Stop", sid: "fork1"))
+        #expect(store.live.isEmpty,
+                "later events for a fork session stay dropped")
+        store.apply(event("SessionStart", "startup", sid: "real1"))
+        #expect(store.live.count == 1,
+                "a normal session in the same store still tracks")
+    }
+
+    @Test func infraSessionStartClassification() {
+        #expect(SessionStore.infraSessionStart(event("SessionStart", "fork")),
+                "SessionStart with source fork is infrastructure")
+        #expect(!SessionStore.infraSessionStart(event("SessionStart", "startup")),
+                "a normal startup is not infrastructure")
+        #expect(!SessionStore.infraSessionStart(event("SessionStart", "resume")),
+                "resume is a user action — Argus's own resume flow depends on it")
+        #expect(!SessionStore.infraSessionStart(event("Stop", "fork")),
+                "only SessionStart speaks for the session's origin")
+    }
+
     @Test func repeatedTerminalStatusStaysInHistory() {
         let store = SessionStore()
         store.apply(event("SessionStart", "startup"))

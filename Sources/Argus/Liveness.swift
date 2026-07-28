@@ -50,22 +50,78 @@ enum Liveness {
             || (path as NSString).lastPathComponent == "claude"
     }
 
-    /// Pids of running Claude CLI processes, identified by executable path
-    /// via `isClaudeCLI`. Blocking — call off the main thread.
+    /// Executable path of a process, or nil if unreadable.
+    static nonisolated func executablePath(_ pid: Int32) -> String? {
+        guard pid > 0 else { return nil }
+        var buffer = [CChar](repeating: 0, count: 4096)
+        guard proc_pidpath(pid, &buffer, UInt32(buffer.count)) > 0 else { return nil }
+        return String(cString: buffer)
+    }
+
+    /// Parent pid of a process, or nil if unreadable.
+    static nonisolated func parentPid(_ pid: Int32) -> Int32? {
+        guard pid > 0 else { return nil }
+        var info = proc_bsdinfo()
+        let size = Int32(MemoryLayout<proc_bsdinfo>.size)
+        guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size else { return nil }
+        return Int32(info.pbi_ppid)
+    }
+
+    /// True if a process's parent is itself a Claude CLI. A claude process
+    /// parented by another claude is agent infrastructure — fork subagents,
+    /// spare daemon pools — never a user terminal session (those are parented
+    /// by a shell or terminal).
+    static nonisolated func hasClaudeCLIParent(_ pid: Int32) -> Bool {
+        guard let ppid = parentPid(pid), ppid > 1,
+              let path = executablePath(ppid) else { return false }
+        return isClaudeCLI(path: path)
+    }
+
+    /// Pids of running user-facing Claude CLI processes, identified by
+    /// executable path via `isClaudeCLI`, excluding agent infrastructure
+    /// (claude processes parented by another claude — see
+    /// `hasClaudeCLIParent`). Blocking — call off the main thread.
     static nonisolated func claudeCLIPids() -> Set<Int32> {
         var pids = [Int32](repeating: 0, count: 8192)
         let count = proc_listallpids(&pids, Int32(pids.count * MemoryLayout<Int32>.size))
         guard count > 0 else { return [] }
 
         var found: Set<Int32> = []
-        var buffer = [CChar](repeating: 0, count: 4096)
         for pid in pids.prefix(Int(count)) where pid > 0 {
-            guard proc_pidpath(pid, &buffer, UInt32(buffer.count)) > 0 else { continue }
-            if isClaudeCLI(path: String(cString: buffer)) {
-                found.insert(pid)
-            }
+            guard let path = executablePath(pid), isClaudeCLI(path: path),
+                  !hasClaudeCLIParent(pid) else { continue }
+            found.insert(pid)
         }
         return found
+    }
+
+    /// Pure: true if an executable path is a login shell — the Bash tool runs
+    /// its commands (foreground and background) as a shell child of the
+    /// claude process; MCP servers and other children never present as one.
+    static nonisolated func isShellExecutable(path: String) -> Bool {
+        ["sh", "bash", "zsh", "dash", "fish"]
+            .contains((path as NSString).lastPathComponent)
+    }
+
+    /// Count of live shell processes directly parented by `pid`. Used to
+    /// cross-check open background shell tasks: the shell *is* the task, so
+    /// zero shell children while the session isn't working means the tasks
+    /// finished even if their completion never reached this session's
+    /// transcript (observed: notifications delivered to a fork's transcript
+    /// instead). Blocking — call off the main thread.
+    static nonisolated func shellChildCount(of pid: Int32) -> Int {
+        var pids = [Int32](repeating: 0, count: 8192)
+        let count = proc_listallpids(&pids, Int32(pids.count * MemoryLayout<Int32>.size))
+        guard count > 0 else { return 0 }
+
+        var shells = 0
+        for child in pids.prefix(Int(count)) where child > 0 {
+            guard parentPid(child) == pid,
+                  let path = executablePath(child), isShellExecutable(path: path)
+            else { continue }
+            shells += 1
+        }
+        return shells
     }
 
     /// Fallback for sessions without a usable pid: consider dead when the

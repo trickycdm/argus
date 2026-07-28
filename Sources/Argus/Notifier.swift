@@ -96,7 +96,7 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
                 : "Turn finished — waiting for your next prompt"
             // The turn can end with background shells/agents still running —
             // say so, or "finished" overstates it. Count only, never content.
-            let bg = session.openBackgroundTasks.count
+            let bg = session.openBackgroundTaskCount
             if bg > 0 {
                 body += " · \(bg) background task\(bg == 1 ? "" : "s") still running"
             }

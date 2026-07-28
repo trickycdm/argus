@@ -17,6 +17,7 @@
 ## Replay semantics
 
 - **On start, the app rebuilds all state by replaying today's file** (`quiet: true` — no notifications for old transitions).
+- **Agent-infrastructure sessions are dropped, never shown.** The global hooks also fire inside claude processes that other claude processes spawn (fork subagents, spare daemon pools). Those aren't user terminal sessions: their rows read as duplicates of the parent and they never fire SessionEnd. Detection is two-belt — `SessionStart` with `source == "fork"` (works on replay), plus a live check that the event's validated pid is parented by another Claude CLI (`Liveness.hasClaudeCLIParent`, also excluded from the untracked-CLI scan). Fork agents still surface on the parent's row via its BG chip.
 - **A replayed pid is guilty until proven innocent.** `Liveness.validatedStartTime` rejects any pid whose kernel start time is *after* the event's timestamp — that pid was recycled by an unrelated process. Identity is always `(pid, start time)`, never a process name (the Claude CLI sets its title to a bare version string). A session without a validated pid falls back to transcript-staleness for liveness.
 
 ## Transcript enrichment
@@ -24,6 +25,7 @@
 - **`TranscriptReader` keeps a per-session byte-offset cursor** and reads only new bytes; a shrunken transcript (resume/compaction) resets the cursor and the token totals. Consume only complete lines; leave the trailing partial for next time.
 - **Sidechain (subagent) usage never updates `contextTokens`** — subagents have their own context window; only main-chain prompt size approximates occupancy.
 - **Background tasks open only on structured receipt fields** (`toolUseResult.backgroundTaskId`; `agentId` + `"async_launched"`), **and close only on `<task-id>` tags in non-assistant lines** — assistant lines quote receipts and tags verbatim (tool inputs, echoed output), so content-text matching produces false opens/closes. Hooks can't replace this: nothing fires at background completion. Track ids and counts only; task prompts and output never leave the parser (privacy invariant).
+- **Transcript closes are not guaranteed to arrive** — a completion can be delivered to another transcript (observed: a fork agent's copy got the parent's shell notifications). Shell tasks are therefore cross-checked against live shell child processes of the session pid (`Liveness.shellChildCount`, swept in `SessionStore.clearStaleShellTasks`); agent tasks have no process to check and rely on transcript closes alone.
 - **`ModelCatalog` is the only model table.** Context windows and pricing live there with longest-prefix matching; adding a model family is one `Entry`. Never add a second model list or inline price.
 
 ## Verification

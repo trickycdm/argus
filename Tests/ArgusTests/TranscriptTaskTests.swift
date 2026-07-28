@@ -52,8 +52,10 @@ import Testing
 
         let result = try #require(TranscriptReader.parse(path: path, from: 0),
                                   "a transcript with content parses")
-        #expect(result.openedTasks == ["bg1", "ag1"],
-                "only main-chain structured receipts open tasks")
+        #expect(result.openedShellTasks == ["bg1"],
+                "only main-chain structured shell receipts open shell tasks")
+        #expect(result.openedAgentTasks == ["ag1"],
+                "only async_launched agent receipts open agent tasks")
         #expect(result.closedTasks == ["ag1"],
                 "only non-assistant task-notification lines close tasks")
     }

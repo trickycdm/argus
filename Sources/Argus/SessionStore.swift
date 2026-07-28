@@ -31,6 +31,12 @@ final class SessionStore {
     @ObservationIgnored var onTranscriptRefresh: ((Session) -> Void)?
 
     @ObservationIgnored private var byID: [String: Session] = [:]
+    /// Sessions born inside agent infrastructure (fork subagents, daemon
+    /// pools). The global hooks fire in those processes too, but they aren't
+    /// user terminal sessions: their rows read as duplicates of the parent,
+    /// they never fire SessionEnd, and their processes linger. Events for
+    /// these ids are dropped entirely.
+    @ObservationIgnored private var infraIDs: Set<String> = []
     @ObservationIgnored private var refreshWork: [String: DispatchWorkItem] = [:]
     @ObservationIgnored private var tickCount = 0
     @ObservationIgnored private var timer: Timer?
@@ -91,6 +97,17 @@ final class SessionStore {
     }
 
     func apply(_ event: HookEvent, quiet: Bool = false) {
+        guard !infraIDs.contains(event.sessionId) else { return }
+        // The live parent check only runs on a validated pid — a replayed,
+        // recycled ppid can point at an unrelated claude-parented process
+        // (an MCP server, say) and must not condemn a real session.
+        if byID[event.sessionId] == nil,
+           Self.infraSessionStart(event)
+            || (Liveness.validatedStartTime(event.ppid, eventDate: event.date) != nil
+                && Liveness.hasClaudeCLIParent(event.ppid)) {
+            infraIDs.insert(event.sessionId)
+            return
+        }
         let session = byID[event.sessionId] ?? create(from: event)
 
         // Session ids are reused across resumes, and a resumed CLI can run
@@ -165,6 +182,15 @@ final class SessionStore {
         }
     }
 
+    /// Pure: true if this event announces an agent-infrastructure session by
+    /// its own start record. Forks declare themselves (`source == "fork"`);
+    /// other infrastructure is caught by the live parent-process check
+    /// (`Liveness.hasClaudeCLIParent`), which this complements during replay
+    /// when the process is already gone.
+    static func infraSessionStart(_ event: HookEvent) -> Bool {
+        event.event == "SessionStart" && event.detail == "fork"
+    }
+
     /// The hook forwards notification_type when present, else the free-text
     /// message — match both, since notification_type is not guaranteed across
     /// CLI versions.
@@ -208,8 +234,9 @@ final class SessionStore {
             session.endedAt = date
             // Background tasks are children of the claude process — they died
             // with it. (A resume rewrites the transcript, which resets and
-            // replays this set anyway.)
-            session.openBackgroundTasks = []
+            // replays these sets anyway.)
+            session.openShellTasks = []
+            session.openAgentTasks = []
             live.removeAll { $0.id == session.id }
             if !history.contains(where: { $0.id == session.id }) {
                 history.insert(session, at: 0)
@@ -265,6 +292,33 @@ final class SessionStore {
         }
         resort()
         countUntrackedProcesses()
+        clearStaleShellTasks()
+    }
+
+    /// A background shell *is* its task: the session's claude pid holding
+    /// zero live shell children while not working means the tasks finished,
+    /// even when their completion notification landed in another transcript
+    /// (observed with fork agents) and the badge would otherwise stick.
+    private func clearStaleShellTasks() {
+        let candidates = live
+            .filter { $0.status != .working && !$0.openShellTasks.isEmpty }
+            .compactMap { session in session.pid.map { (id: session.id, pid: $0) } }
+        guard !candidates.isEmpty else { return }
+        Task.detached(priority: .utility) {
+            let stale = candidates
+                .filter { Liveness.shellChildCount(of: $0.pid) == 0 }
+                .map(\.id)
+            guard !stale.isEmpty else { return }
+            await MainActor.run { [weak self] in
+                guard let self else { return }
+                for id in stale {
+                    guard let session = self.byID[id], session.status != .working,
+                          !session.openShellTasks.isEmpty else { continue }
+                    NSLog("Argus: clearing \(session.openShellTasks.count) background shell task(s) for session \(id) — no live shell children")
+                    session.openShellTasks = []
+                }
+            }
+        }
     }
 
     /// Compares running Claude CLI processes against every pid Argus has ever

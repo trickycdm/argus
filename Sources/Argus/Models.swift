@@ -91,10 +91,17 @@ final class Session: Identifiable {
     /// Tool uses since the last UserPromptSubmit — decides whether Stop means
     /// "ready for review" (did work) or merely "idle" (trivial turn).
     var toolUsesThisTurn = 0
-    /// Ids of background tasks (shells and agents) this session launched whose
-    /// completion notification hasn't appeared in the transcript yet — a turn
-    /// can end while these still run. Drives the row's BG chip.
-    var openBackgroundTasks: Set<String> = []
+    /// Ids of background Bash shells this session launched whose completion
+    /// notification hasn't appeared in its transcript yet — a turn can end
+    /// while these still run. Cross-checked against live shell child
+    /// processes by the liveness sweep, because completions can be delivered
+    /// to another transcript (observed with fork agents) and never arrive.
+    var openShellTasks: Set<String> = []
+    /// Ids of background agents this session launched, same lifecycle as
+    /// `openShellTasks` but with no child process to cross-check against.
+    var openAgentTasks: Set<String> = []
+    /// Drives the row's BG chip and the turn-end notification suffix.
+    var openBackgroundTaskCount: Int { openShellTasks.count + openAgentTasks.count }
     /// Last hook event name — a session whose last event is PreToolUse is
     /// inside a tool call, which can legitimately be silent for a long time.
     var lastEventName = ""

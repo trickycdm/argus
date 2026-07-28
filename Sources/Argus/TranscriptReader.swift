@@ -39,8 +39,10 @@ final class TranscriptReader {
         var contextTokens: Int?
         /// Background tasks launched / completed in this read, by id. Applied
         /// union-then-subtract, so a task that launches and completes within
-        /// one read nets to closed.
-        var openedTasks: Set<String> = []
+        /// one read nets to closed. Shells and agents are tracked apart: only
+        /// shells can be liveness-checked against child processes.
+        var openedShellTasks: Set<String> = []
+        var openedAgentTasks: Set<String> = []
         var closedTasks: Set<String> = []
     }
 
@@ -141,10 +143,10 @@ final class TranscriptReader {
            entry.isSidechain != true,
            let receipt = entry.toolUseResult {
             if let id = receipt.backgroundTaskId {
-                result.openedTasks.insert(id)
+                result.openedShellTasks.insert(id)
             }
             if receipt.status == "async_launched", let id = receipt.agentId {
-                result.openedTasks.insert(id)
+                result.openedAgentTasks.insert(id)
             }
         }
         if line.range(of: Data("<task-notification>".utf8)) != nil {
@@ -175,7 +177,8 @@ final class TranscriptReader {
         if result.didReset {
             session.tokens = TokenTotals()
             session.contextTokens = nil
-            session.openBackgroundTasks = []
+            session.openShellTasks = []
+            session.openAgentTasks = []
         }
         session.transcriptOffset = result.newOffset
         session.tokens.input += result.tokensDelta.input
@@ -186,8 +189,10 @@ final class TranscriptReader {
         if let branch = result.gitBranch { session.gitBranch = branch }
         if let line = result.lastAssistantLine { session.lastAssistantLine = line }
         if let context = result.contextTokens { session.contextTokens = context }
-        session.openBackgroundTasks.formUnion(result.openedTasks)
-        session.openBackgroundTasks.subtract(result.closedTasks)
+        session.openShellTasks.formUnion(result.openedShellTasks)
+        session.openShellTasks.subtract(result.closedTasks)
+        session.openAgentTasks.formUnion(result.openedAgentTasks)
+        session.openAgentTasks.subtract(result.closedTasks)
         session.costUSD = Pricing.estimate(model: session.model, tokens: session.tokens)
     }
 

@@ -70,7 +70,8 @@ hooks/argus-hook.sh ──▶ ~/Library/Application Support/Argus/events-YYYYMMD
 | 2026-07 | Session/iTerm ids validated by shape, not escaped | They're hex-and-dash by construction; an allowlist is simpler and stronger than escaping arbitrary hostile input |
 | 2026-07 | Zero external dependencies | Trust (the app watches private work), build speed, and nothing to go stale |
 | 2026-07 | Swift 5 language mode on tools 6.0 | Strict concurrency migration is real work; honesty over a flag — see `steering/CONCURRENCY.md` |
-| 2026-07 | Background tasks tracked via transcript markers, not hooks or process scans | No hook fires at background completion (verified live; Pre/PostToolUse brackets the *launch*); transcript receipts carry structured ids and task-notifications close them. Process-tree scanning (shell-snapshot children of the session pid) works but is shells-only — kept as the fallback plan if the unstable transcript format drifts |
+| 2026-07 | Background tasks tracked via transcript markers, with a process-tree staleness guard for shells | No hook fires at background completion (verified live; Pre/PostToolUse brackets the *launch*); transcript receipts carry structured ids and task-notifications close them. Closes can be misdelivered (a fork's transcript received the parent's), so shell tasks are also cleared when the session pid holds no live shell children; agent tasks have no process to check |
+| 2026-07 | Agent-infrastructure sessions (fork subagents, daemon pools) are dropped | Global hooks fire inside claude-spawned claudes too; their rows read as duplicates, never SessionEnd, and their processes linger. Detected by `source == "fork"` plus parent-is-a-claude-CLI on a validated pid; the same parent rule excludes them from the untracked-CLI count. Fork agents surface via the parent row's BG chip instead |
 
 ## Open items
 

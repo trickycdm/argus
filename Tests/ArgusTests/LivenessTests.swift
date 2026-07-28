@@ -36,4 +36,16 @@ import Testing
         #expect(!Liveness.isClaudeCLI(path: "/Applications/Claude.app/Contents/MacOS/Claude"),
                 "the desktop app itself never counts")
     }
+
+    @Test func shellExecutableClassification() {
+        for path in ["/bin/zsh", "/bin/bash", "/bin/sh", "/opt/homebrew/bin/fish"] {
+            #expect(Liveness.isShellExecutable(path: path),
+                    "\(path) is a shell the Bash tool can run under")
+        }
+        for path in ["/usr/local/bin/node", "/usr/bin/python3",
+                     "/Users/me/.local/bin/claude", "/bin/zshx"] {
+            #expect(!Liveness.isShellExecutable(path: path),
+                    "\(path) is not a shell — MCP servers and CLIs must not count")
+        }
+    }
 }
