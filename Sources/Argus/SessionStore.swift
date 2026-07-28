@@ -11,7 +11,9 @@ final class SessionStore {
     /// the whole tree (or anything at all while the popover is closed).
     @ObservationIgnored private(set) var now = Date()
     /// UUIDs of iTerm sessions currently open — refreshed when the popover
-    /// appears; marks history rows whose terminal tab still exists.
+    /// appears; marks history rows whose terminal tab still exists. iTerm-only
+    /// by design: Ghostty has no per-session identity that outlives the claude
+    /// process, so its history rows always offer resume (see tabStillOpen).
     var openItermUUIDs: Set<String> = []
     /// Running claude processes Argus has no events for (started before the
     /// hooks were installed). Surfaced as a hint so the app is honest about
@@ -64,6 +66,14 @@ final class SessionStore {
         DispatchQueue.main.asyncAfter(deadline: .now() + 6, execute: work)
     }
 
+    /// Whether a history row's terminal tab is still open. A session that
+    /// ended in iTerm but was resumed into Ghostty still carries its stale
+    /// iTerm UUID — the terminal check keeps that from showing a false badge.
+    func tabStillOpen(_ session: Session) -> Bool {
+        guard session.terminal != .ghostty else { return false }
+        return session.itermSessionUUID.map { openItermUUIDs.contains($0) } ?? false
+    }
+
     /// Focusing a ready session means the user has seen the work — REVIEW
     /// drops to STBY so ready-counts always mean "unseen". Quiet: seeing it
     /// is not a transition worth notifying about.
@@ -103,6 +113,11 @@ final class SessionStore {
             }
         }
         if let uuid = ITermFocus.uuid(from: event.iterm) { session.itermSessionUUID = uuid }
+        // Only overwrite on positive detection — a v1 log line replayed after
+        // a v2 one must not reset a known terminal to unknown.
+        if let terminal = TerminalApp.detect(itermID: event.iterm, termProgram: event.term) {
+            session.terminal = terminal
+        }
         session.lastEventAt = event.date
         session.lastEventName = event.event
         session.deadChecks = 0

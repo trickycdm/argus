@@ -89,9 +89,7 @@ struct SessionListView: View {
                     ForEach(store.history) { session in
                         HistoryRowView(
                             session: session,
-                            tabStillOpen: session.itermSessionUUID.map {
-                                store.openItermUUIDs.contains($0)
-                            } ?? false
+                            tabStillOpen: store.tabStillOpen(session)
                         ) {
                             focusOrResume(session)
                             Self.dismissPopover()
@@ -133,7 +131,7 @@ extension SessionListView {
 
     /// MenuBarExtra window-style popovers have no dismiss API; closing the
     /// key window is the accepted approach. Gives click feedback and lets
-    /// iTerm come to the front.
+    /// the terminal come to the front.
     static func dismissPopover() {
         NSApp.keyWindow?.close()
     }
@@ -247,7 +245,7 @@ struct HistoryRowView: View {
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
         .help(tabStillOpen
-              ? "Click to focus this session's iTerm tab"
-              : "Click to reopen this session (claude --resume) in a new iTerm tab")
+              ? "Click to focus this session's terminal tab"
+              : "Click to reopen this session (claude --resume) in a new terminal tab")
     }
 }

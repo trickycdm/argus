@@ -21,7 +21,7 @@
     <key>LSUIElement</key>
     <true/>
     <key>NSAppleEventsUsageDescription</key>
-    <string>Argus focuses iTerm2 tabs for your Claude sessions.</string>
+    <string>Argus focuses terminal tabs (iTerm2, Ghostty) for your Claude sessions.</string>
     <key>NSHumanReadableCopyright</key>
     <string>Copyright © 2026 Col Mack. MIT License.</string>
 </dict>

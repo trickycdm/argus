@@ -45,19 +45,19 @@ The popover reads like an instrument panel, not a dashboard of charts. One row p
 
 Avionics colour law applies throughout: amber only ever means *act now*. HOLD flashes, RUN breathes, and those are the only two animations in the app. Everything else holds steady so movement always means something.
 
-The menu bar icon is the summary instrument: an exclamation eye with the blocked count, a badged eye with the ready count when nothing is blocked, a plain eye when all is quiet. When a session flips to needs-you, a notification fires (60s per-session debounce), and clicking it jumps you to the exact iTerm2 tab and pane.
+The menu bar icon is the summary instrument: an exclamation eye with the blocked count, a badged eye with the ready count when nothing is blocked, a plain eye when all is quiet. When a session flips to needs-you, a notification fires (60s per-session debounce), and clicking it jumps you to the exact terminal tab and pane.
 
 ## How it works
 
 The signal path above is the whole architecture: hooks in, log file, one app tailing it.
 
-- **The hook** is ~50 lines of dependency-free bash that appends one JSON line per Claude Code lifecycle event: `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `Notification`, `Stop`, `SessionEnd`. It also captures `ITERM_SESSION_ID` (click-to-focus) and `$PPID` (liveness). It runs synchronously inside your sessions, so it is built to be unnoticeable: no forks, ~10ms, always exits 0.
+- **The hook** is ~50 lines of dependency-free bash that appends one JSON line per Claude Code lifecycle event: `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `Notification`, `Stop`, `SessionEnd`. It also captures `ITERM_SESSION_ID` and `TERM_PROGRAM` (click-to-focus, per-session terminal detection) and `$PPID` (liveness, Ghostty focus). It runs synchronously inside your sessions, so it is built to be unnoticeable: no forks, ~10ms, always exits 0.
 - **The app** never scrapes terminals. All state comes from the event log, transcript files, and liveness checks. A process is identified by `(pid, kernel start time)`, never by name, because the Claude CLI sets its process title to a bare version string.
 - **Privacy is structural**: zero external dependencies, no network calls, no telemetry, and transcript content never leaves your screen. An app that watches your coding sessions should have nothing to hide.
 
 ## Install
 
-Requirements: macOS 14+, a Swift toolchain (Xcode or Command Line Tools), `python3` (used once by the hook installer to merge JSON), and [iTerm2](https://iterm2.com). Click-to-focus and resume are iTerm2-only; there is no Terminal.app fallback.
+Requirements: macOS 14+, a Swift toolchain (Xcode or Command Line Tools), `python3` (used once by the hook installer to merge JSON), and [iTerm2](https://iterm2.com) and/or [Ghostty](https://ghostty.org) 1.3+ (whose AppleScript support is a preview feature — leave `macos-applescript` enabled). Each session's terminal is auto-detected; there is no Terminal.app fallback.
 
 ```sh
 ./scripts/install-hooks.sh     # merges hooks into ~/.claude/settings.json (backup kept, idempotent)
@@ -65,7 +65,7 @@ Requirements: macOS 14+, a Swift toolchain (Xcode or Command Line Tools), `pytho
 open dist/Argus.app
 ```
 
-On first launch, approve the notification prompt. On first row-click, approve the "Argus wants to control iTerm2" Automation prompt. Running Claude sessions pick up the hooks on their next session start.
+On first launch, approve the notification prompt. On first row-click, approve the per-terminal Automation prompt (iTerm2 and Ghostty each prompt once). Running Claude sessions pick up the hooks on their next session start.
 
 For autostart: `cp -R dist/Argus.app /Applications/` and add it as a Login Item in System Settings.
 
@@ -73,15 +73,16 @@ To remove: `./scripts/uninstall-hooks.sh` and quit the app.
 
 ## Working the panel
 
-Click a row to jump to that session's iTerm2 tab. Right-click for the rest: open in editor, open on GitHub (derived from `git remote`), open in Linear (ticket id parsed from the branch name, e.g. `feat/ENG-123`, else a configured board URL), copy session id or resume command, mark reviewed, snooze notifications 1h, end session (SIGTERM, confirmed). Hovering a row reveals editor/GitHub/snooze shortcuts.
+Click a row to jump to that session's terminal tab. Right-click for the rest: open in editor, open on GitHub (derived from `git remote`), open in Linear (ticket id parsed from the branch name, e.g. `feat/ENG-123`, else a configured board URL), copy session id or resume command, mark reviewed, snooze notifications 1h, end session (SIGTERM, confirmed). Hovering a row reveals editor/GitHub/snooze shortcuts.
 
-Rows show project name, git branch, a working-tree chip (`●dirty ↑ahead ↓behind`), time in state, the last assistant message, and token count with estimated cost. History rows from earlier today can be resumed with a click (`claude --resume` in a fresh tab).
+Rows show project name, git branch, a working-tree chip (`●dirty ↑ahead ↓behind`), time in state, the last assistant message, and model + token count with estimated cost. History rows from earlier today can be resumed with a click (`claude --resume` in a fresh tab; iTerm2 rows that still have their tab open focus it instead — Ghostty has no per-session identity once claude exits, so its history rows always resume).
 
 Config lives at `~/.config/argus/config.json`:
 
 | Key | Does |
 |---|---|
 | `editor` | App name for `open -a` (default Zed) |
+| `terminal` | `iTerm2` or `Ghostty` — only for sessions whose terminal can't be detected (default iTerm2) |
 | `linearWorkspace` | Your linear.app/&lt;slug&gt; |
 | `contextAlarm` | Alarm threshold in percent (default 65, clamped 10–95) |
 | `projects.<cwd>.{board,github}` | Per-project link overrides |
@@ -102,7 +103,7 @@ Zero external dependencies is deliberate, and it keeps the loop honest: the enti
 - Sessions spanning midnight re-materialise on their first event after rollover.
 - Cost is an estimate ("~$") from per-turn transcript usage and a hardcoded price map; treat `/cost` as authoritative.
 - Claude Code only. Adapters for other agent CLIs would slot in at the event-log layer.
-- iTerm2 only for focus/resume (see Install).
+- iTerm2 and Ghostty 1.3+ only for focus/resume (see Install); Ghostty history rows can't detect a still-open tab.
 
 ## License
 

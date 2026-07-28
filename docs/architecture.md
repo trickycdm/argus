@@ -22,7 +22,8 @@ hooks/argus-hook.sh ──▶ ~/Library/Application Support/Argus/events-YYYYMMD
                      MenuBarExtra popover (SessionListView / SessionRowView)
                                      │ user clicks
                                      ▼
-                    ITermFocus (AppleScript) · RowActions (editor/GitHub/Linear/…)
+              TerminalFocus → ITermFocus / GhosttyFocus (AppleScript)
+                            · RowActions (editor/GitHub/Linear/…)
 ```
 
 ## Modules
@@ -38,7 +39,8 @@ hooks/argus-hook.sh ──▶ ~/Library/Application Support/Argus/events-YYYYMMD
 | `ModelCatalog` | The one model table: context windows + pricing | Longest-prefix `entry(for:)` |
 | `Notifier` | macOS notifications, debounce, context alarm latch | `transition` / `checkContext` |
 | `RowActions` | Everything a row can do beyond focus | One object injected into views |
-| `ITermFocus` | AppleScript bridge to iTerm2 | `Subprocess.run` + `Escape` |
+| `TerminalFocus` | Per-session backend dispatch (`TerminalApp` detect/config fallback) | `focus`/`resume` + shared `runOsascript` |
+| `ITermFocus` / `GhosttyFocus` | AppleScript bridges (iTerm by session uuid; Ghostty by claude pid) | Pure script builders, tested without osascript |
 | `Subprocess` / `Escape` | The only process spawner; escaping/validation | Used by everything that shells out |
 | `Views/` | Flight Deck UI (`Deck` tokens in `Theme.swift`) | Pure rendering over `@Observable` state |
 
@@ -53,7 +55,9 @@ hooks/argus-hook.sh ──▶ ~/Library/Application Support/Argus/events-YYYYMMD
 | 2026-07 | Two-axis status model (conversation × liveness) | "What is it doing" and "is it alive" fail independently; conflating them hid dead-but-idle sessions |
 | 2026-07 | Stop means READY only after tool use | A bare Q&A turn isn't reviewable work; READY must mean "something to look at" |
 | 2026-07 | Edge-triggered context alarm with hysteresis | Level-triggered alarms re-fire on every refresh; the 5-point band stops flapping around the threshold |
-| 2026-07 | iTerm2-only focus (no Terminal.app fallback) | iTerm's AppleScript sessions expose stable ids; Terminal's don't map to Claude sessions reliably |
+| 2026-07 | iTerm2-only focus (no Terminal.app fallback) — *superseded by per-session multi-backend below* | iTerm's AppleScript sessions expose stable ids; Terminal's don't map to Claude sessions reliably |
+| 2026-07 | Per-session terminal auto-detect (iTerm2 + Ghostty), config only as fallback | One global setting misroutes mixed usage; the hook already sees each session's environment |
+| 2026-07 | Ghostty ended sessions always resume — no tab-open badge | Ghostty has no per-session identity that outlives the claude process (pid dies with it); honest degrade beats a wrong badge |
 | 2026-07 | `@Observable` + `@MainActor` classes, closure wiring | Small object graph; a DI framework or Combine would be pure overhead here |
 | 2026-07 | Elapsed labels via `TimelineView`, not an observable clock | A ticking observable re-rendered the whole tree every second, popover open or not — battery cost for an all-day app |
 | 2026-07 | One `Subprocess` helper with concurrent pipe drains | Two hand-rolled wrappers both deadlocked on >64KB output; the fix belongs in exactly one place |

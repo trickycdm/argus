@@ -20,7 +20,9 @@ Sources/Argus/
   Notifier.swift       — UNUserNotificationCenter: transitions, context alarm latch, debounce
   Subprocess.swift     — the one process spawner + Escape (AppleScript/shell escaping, id validation)
   GitState.swift       — porcelain-v2 parse, remote → browsable URL
-  ITermFocus.swift     — AppleScript bridge: focus tab, list sessions, resume
+  TerminalFocus.swift  — TerminalApp (per-session detect) + backend dispatch, shared osascript runner
+  ITermFocus.swift     — iTerm2 AppleScript bridge: focus by session uuid, list tabs, resume
+  GhosttyFocus.swift   — Ghostty (1.3+) AppleScript bridge: focus by claude pid, resume
   RowActions.swift     — everything a row can do (editor/GitHub/Linear/copy/snooze/end)
   Config.swift         — ~/.config/argus/config.json + per-repo .argus.json merge
   Format.swift         — pure display formatting
@@ -50,7 +52,7 @@ Data flow, module table, decision log: [`docs/architecture.md`](docs/architectur
 
 ## Tooling
 
-Requires macOS 14+, a Swift 6 toolchain, python3 (hook installer only), iTerm2 (focus/resume).
+Requires macOS 14+, a Swift 6 toolchain, python3 (hook installer only), iTerm2 and/or Ghostty 1.3+ (focus/resume).
 
 ```sh
 swift build && swift test        # the whole gate, ~1s; run it after every change
@@ -61,7 +63,7 @@ swift run                        # full UI; notifications fall back to NSLog (no
 
 - `UNUserNotificationCenter` **crashes** outside a real `.app` bundle — all calls are gated on `Notifier.hasBundle`; test notification behaviour only from the bundled app.
 - The hook's smoke test (hostile quotes/backslashes) is in `steering/EVENT_LOG_AND_HOOKS.md` — clean test lines out of the live log afterwards.
-- Mic-free, but TCC still applies: first row-click prompts for iTerm2 Automation consent (keyed to the bundle id — don't change `CFBundleIdentifier` casually).
+- Mic-free, but TCC still applies: the first row-click per terminal prompts for that app's Automation consent (keyed to the bundle id — don't change `CFBundleIdentifier` casually).
 
 ## Standards
 

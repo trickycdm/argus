@@ -31,12 +31,14 @@ struct HookEvent: Decodable {
     let cwd: String
     let transcript: String
     let iterm: String
+    /// Raw TERM_PROGRAM at hook time (v2+) — optional so v1 lines decode.
+    let term: String?
     let ppid: Int32
 
     enum CodingKeys: String, CodingKey {
         case v, ts, event, detail
         case sessionId = "session_id"
-        case cwd, transcript, iterm, ppid
+        case cwd, transcript, iterm, term, ppid
     }
 
     var date: Date { Date(timeIntervalSince1970: TimeInterval(ts)) }
@@ -62,6 +64,9 @@ final class Session: Identifiable {
     /// compare against it to detect pid reuse without trusting process names.
     var pidStartTime: UInt64?
     var transcriptPath: String?
+    /// Host terminal, detected from hook data; nil = unknown (old logs or an
+    /// unsupported terminal) — flows fall back to the config default.
+    var terminal: TerminalApp?
     var status: SessionStatus
     var statusSince: Date
     var lastEventAt: Date

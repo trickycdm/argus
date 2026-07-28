@@ -35,7 +35,7 @@ final class ArgusController {
 
     func focus(_ session: Session) {
         store.acknowledge(session)   // focusing a ready session = reviewed
-        ITermFocus.focus(session) { [store] result in
+        TerminalFocus.focus(session, fallback: actions.config.effectiveTerminal) { [store] result in
             if case .error(let message) = result {
                 NSLog("Argus: focus failed — \(message)")
                 store.showAlert("Focus failed — \(message)")
@@ -52,15 +52,16 @@ final class ArgusController {
     }
 
     /// History rows: focus the tab if it still exists, otherwise reopen the
-    /// session in a new iTerm tab via `claude --resume`.
+    /// session in a new terminal tab/window via `claude --resume`.
     func focusOrResume(_ session: Session) {
-        ITermFocus.focus(session) { [store] result in
+        let fallback = actions.config.effectiveTerminal
+        TerminalFocus.focus(session, fallback: fallback) { [store] result in
             switch result {
             case .focused:
                 break
-            case .notFound, .noUUID:
+            case .notFound, .noHandle:
                 // The session re-materializes via SessionStart on resume.
-                ITermFocus.resume(session) { resumeResult in
+                TerminalFocus.resume(session, fallback: fallback) { resumeResult in
                     if case .error(let message) = resumeResult {
                         NSLog("Argus: resume failed — \(message)")
                         store.showAlert("Resume failed — \(message)")
@@ -76,8 +77,14 @@ final class ArgusController {
     /// Called when the popover appears: marks history rows whose tab is
     /// open, re-reads config, and refreshes git chips for live sessions.
     func refreshOnPopoverOpen() {
-        ITermFocus.listOpenSessionUUIDs { [store] uuids in
-            store.openItermUUIDs = uuids
+        // Probe only while iTerm2 is running — `tell application` would
+        // launch it, which a Ghostty-only user would see on every popover.
+        if TerminalFocus.isRunning(.iterm) {
+            ITermFocus.listOpenSessionUUIDs { [store] uuids in
+                store.openItermUUIDs = uuids
+            }
+        } else {
+            store.openItermUUIDs = []
         }
         actions.config = ArgusConfig.loadGlobal()
         Self.applyConfig(actions.config)

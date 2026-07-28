@@ -81,7 +81,7 @@ struct SessionRowView: View {
             RowActionsMenu(session: session, actions: actions, focus: onTap)
         }
         .onHover { hovering = $0 }
-        .help("Click to focus this session's iTerm tab · right-click for actions")
+        .help("Click to focus this session's terminal tab · right-click for actions")
     }
 
     private var timeColor: Color {

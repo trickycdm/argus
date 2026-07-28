@@ -1,5 +1,4 @@
 import Foundation
-import AppKit
 
 /// Focuses the iTerm2 tab/pane hosting a session, using the UUID captured
 /// from ITERM_SESSION_ID at hook time. Verified against iTerm's sdef:
@@ -7,8 +6,6 @@ import AppKit
 /// windows/tabs/sessions visible and selected.
 @MainActor
 enum ITermFocus {
-    enum Result { case focused, notFound, noUUID, error(String) }
-
     /// "w0t0p0:BBE76183-…" → "BBE76183-…". A bare, colon-less UUID passes
     /// through unchanged — the id property's prefix varies by iTerm version.
     static nonisolated func uuid(from raw: String) -> String? {
@@ -17,9 +14,10 @@ enum ITermFocus {
         return uuid.isEmpty ? nil : uuid
     }
 
-    static func focus(_ session: Session, completion: @escaping (Result) -> Void) {
+    static func focus(_ session: Session,
+                      completion: @escaping (TerminalFocus.Result) -> Void) {
         guard let uuid = session.itermSessionUUID, !uuid.isEmpty else {
-            completion(.noUUID)
+            completion(.noHandle)
             return
         }
         // The uuid originates from untrusted hook input and is interpolated
@@ -28,9 +26,51 @@ enum ITermFocus {
             completion(.error("unexpected session id format"))
             return
         }
-        // `contains` is deliberate: the id property may or may not carry the
-        // w0t0p0: style prefix depending on iTerm version.
-        let script = """
+        TerminalFocus.runOsascript(focusScript(uuid: uuid)) { output, error in
+            if let error {
+                completion(.error(error))
+            } else if output == "ok" {
+                completion(.focused)
+            } else {
+                completion(.notFound)
+            }
+        }
+    }
+
+    /// Lists the UUIDs of all sessions currently open in iTerm2. Used to mark
+    /// history rows whose terminal tab still exists.
+    static func listOpenSessionUUIDs(completion: @escaping (Set<String>) -> Void) {
+        TerminalFocus.runOsascript(listScript()) { output, _ in
+            guard let output else { return completion([]) }
+            completion(Set(output.split(separator: "\n").compactMap { Self.uuid(from: String($0)) }))
+        }
+    }
+
+    /// Reopens an ended session: new iTerm tab in the session's directory
+    /// running `claude --resume <session-id>`.
+    static func resume(_ session: Session,
+                       completion: @escaping (TerminalFocus.Result) -> Void) {
+        // The session id lands in a shell command line — same untrusted-input
+        // rule as focus(): refuse anything that isn't UUID-shaped.
+        guard Escape.isUUIDLike(session.id) else {
+            completion(.error("unexpected session id format"))
+            return
+        }
+        TerminalFocus.runOsascript(resumeScript(cwd: session.cwd, sessionID: session.id)) { output, error in
+            if let error {
+                completion(.error(error))
+            } else {
+                completion(output == "ok" ? .focused : .notFound)
+            }
+        }
+    }
+
+    // MARK: - Script builders (pure; callers validate inputs)
+
+    /// `contains` is deliberate: the id property may or may not carry the
+    /// w0t0p0: style prefix depending on iTerm version.
+    static nonisolated func focusScript(uuid: String) -> String {
+        """
         tell application "iTerm2"
             repeat with w in windows
                 repeat with t in tabs of w
@@ -49,21 +89,10 @@ enum ITermFocus {
         end tell
         return "notfound"
         """
-        run(script) { output, error in
-            if let error {
-                completion(.error(error))
-            } else if output == "ok" {
-                completion(.focused)
-            } else {
-                completion(.notFound)
-            }
-        }
     }
 
-    /// Lists the UUIDs of all sessions currently open in iTerm2. Used to mark
-    /// history rows whose terminal tab still exists.
-    static func listOpenSessionUUIDs(completion: @escaping (Set<String>) -> Void) {
-        let script = """
+    static nonisolated func listScript() -> String {
+        """
         tell application "iTerm2"
             set out to ""
             repeat with w in windows
@@ -76,24 +105,14 @@ enum ITermFocus {
         end tell
         return out
         """
-        run(script) { output, _ in
-            guard let output else { return completion([]) }
-            completion(Set(output.split(separator: "\n").compactMap { Self.uuid(from: String($0)) }))
-        }
     }
 
-    /// Reopens an ended session: new iTerm tab in the session's directory
-    /// running `claude --resume <session-id>`.
-    static func resume(_ session: Session, completion: @escaping (Result) -> Void) {
-        // The session id lands in a shell command line — same untrusted-input
-        // rule as focus(): refuse anything that isn't UUID-shaped.
-        guard Escape.isUUIDLike(session.id) else {
-            completion(.error("unexpected session id format"))
-            return
-        }
-        let command = "cd \(Escape.shellSingleQuoted(session.cwd)) && claude --resume \(session.id)"
+    /// The command line goes through `write text` into a live shell — the
+    /// cwd is shell-quoted first, then the whole command AppleScript-escaped.
+    static nonisolated func resumeScript(cwd: String, sessionID: String) -> String {
+        let command = "cd \(Escape.shellSingleQuoted(cwd)) && claude --resume \(sessionID)"
         let escaped = Escape.appleScriptString(command)
-        let script = """
+        return """
         tell application "iTerm2"
             if (count of windows) = 0 then
                 create window with default profile
@@ -107,26 +126,5 @@ enum ITermFocus {
         end tell
         return "ok"
         """
-        run(script) { output, error in
-            if let error {
-                completion(.error(error))
-            } else {
-                completion(output == "ok" ? .focused : .notFound)
-            }
-        }
-    }
-
-    private static func run(_ script: String,
-                            completion: @escaping @MainActor (String?, String?) -> Void) {
-        Task {
-            let result = await Subprocess.run("/usr/bin/osascript", ["-e", script])
-            let out = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-            let err = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
-            if result.status != 0 {
-                completion(nil, err.isEmpty ? "osascript exit \(result.status)" : err)
-            } else {
-                completion(out, nil)
-            }
-        }
     }
 }

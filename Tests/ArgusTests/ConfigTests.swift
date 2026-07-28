@@ -20,4 +20,12 @@ import Testing
                 && resolved.linearWorkspace == "ws",
                 "repo file overrides global, inherits the rest")
     }
+
+    @Test func terminalFieldDecodes() throws {
+        let config = try JSONDecoder().decode(
+            ArgusConfig.self, from: Data(#"{"terminal": "Ghostty"}"#.utf8))
+        #expect(config.effectiveTerminal == .ghostty, "terminal decodes from JSON")
+        let empty = try JSONDecoder().decode(ArgusConfig.self, from: Data("{}".utf8))
+        #expect(empty.effectiveTerminal == .iterm, "absent terminal → iTerm2 default")
+    }
 }

@@ -12,11 +12,12 @@
 - **`UNUserNotificationCenter` requires a real `.app` bundle** — it throws under `swift run` *and* `swift test`. Every path into it is gated on `Notifier.hasBundle` (which checks for a `.app` bundle path, not just a bundle id); ungated calls will crash the dev loop. The NSLog fallback is the designed dev-mode behaviour, not a stub.
 - **The notification delegate must be installed before launch finishes** to receive cold-launch taps — guaranteed because `ArgusController` (which builds `Notifier`) is created during `App` init. Don't move that construction later.
 
-## AppleScript & automation (iTerm2)
+## AppleScript & automation (terminals)
 
-- **Values interpolated into AppleScript source are untrusted.** Session and iTerm ids come from hook input: validate their shape with `Escape.isUUIDLike` and refuse, rather than trying to escape arbitrary content. Anything else crossing into script source goes through `Escape.appleScriptString` (and `Escape.shellSingleQuoted` first if it lands in a shell command, in that order — shell quote, then AppleScript-escape the whole command).
-- **The first `osascript` call to iTerm2 triggers the Automation (TCC) consent prompt**, keyed to the bundle id. Ad-hoc re-signing keeps the grant as long as the bundle id is stable; changing `CFBundleIdentifier` re-prompts every user.
-- **iTerm2 is a hard dependency for focus/resume** — there is deliberately no Terminal.app fallback. Degrade gracefully when it's absent (surface the failure, don't crash), and keep the README's requirements honest about it.
+- **Values interpolated into AppleScript source are untrusted.** Session and iTerm ids come from hook input: validate their shape with `Escape.isUUIDLike` and refuse, rather than trying to escape arbitrary content. Anything else crossing into script source goes through `Escape.appleScriptString` (and `Escape.shellSingleQuoted` first if it lands in a shell command, in that order — shell quote, then AppleScript-escape the whole command). Ghostty's focus handle is the claude pid — an integer, injection-safe by type.
+- **The first `osascript` call to a terminal triggers the Automation (TCC) consent prompt**, keyed to the bundle id *per target app* — iTerm2 and Ghostty prompt separately. Ad-hoc re-signing keeps the grants as long as the bundle id is stable; changing `CFBundleIdentifier` re-prompts every user.
+- **iTerm2 and Ghostty are the supported backends** (`TerminalFocus` dispatches per session; `steering/EVENT_LOG_AND_HOOKS.md` covers how the hook detects the terminal). Ghostty needs 1.3+ with its preview AppleScript dictionary enabled (`macos-applescript`); ended Ghostty sessions can't be located (no per-session identity survives the claude process), so they always resume — no tab-open badge. There is deliberately no Terminal.app fallback. Degrade gracefully when a terminal is absent or unscriptable (surface the failure via the amber strip, don't crash), and keep the README's requirements honest about it.
+- **Never probe a terminal that isn't running** — `tell application` launches it. Gate probes on `TerminalFocus.isRunning` (exemplar: the popover's iTerm tab scan); only resume launches a terminal, deliberately.
 
 ## Distribution
 
@@ -27,4 +28,5 @@
 
 1. `./scripts/bundle.sh && open dist/Argus.app` — menu-bar icon appears, popover opens, no Dock icon.
 2. Notification paths: only testable from the bundled app (grant the permission prompt on first launch).
-3. Focus/resume paths: click a row with iTerm2 running; first run must show the Automation prompt, not a silent failure.
+3. Focus/resume paths: click a row with its terminal running (iTerm2 and Ghostty each); the first click per terminal must show that terminal's Automation prompt, not a silent failure.
+4. Ghostty-only check: quit iTerm2, open the popover — iTerm2 must not launch.

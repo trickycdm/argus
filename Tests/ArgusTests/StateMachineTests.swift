@@ -75,6 +75,34 @@ import Testing
         #expect(store.live.first?.id == "s1", "blocked sorts above ready")
     }
 
+    @Test func terminalDetectionSurvivesOldLogLines() {
+        let store = SessionStore()
+        store.apply(event("SessionStart", "startup", iterm: "", term: "ghostty"))
+        #expect(store.live.first?.terminal == .ghostty, "TERM_PROGRAM=ghostty → ghostty")
+        store.apply(event("PostToolUse", iterm: "", term: nil))
+        #expect(store.live.first?.terminal == .ghostty,
+                "v1-shaped event must not reset a detected terminal")
+    }
+
+    @Test func tabStillOpenIsITermOnly() {
+        let store = SessionStore()
+        store.apply(event("SessionStart", "startup"))   // default iterm uuid AAA
+        store.apply(event("SessionStart", "startup", sid: "s2", iterm: "", term: "ghostty"))
+        store.openItermUUIDs = ["AAA"]
+        #expect(store.tabStillOpen(store.session(id: "s1")!),
+                "iTerm session with its uuid in the open set → badge")
+        #expect(!store.tabStillOpen(store.session(id: "s2")!),
+                "ghostty session never badges — no probeable identity")
+
+        // Ended in iTerm, resumed into Ghostty: the stale iTerm uuid survives
+        // on the session but must not produce a false badge.
+        store.apply(event("SessionEnd", "other"))
+        store.apply(event("SessionStart", "resume", iterm: "", term: "ghostty"))
+        #expect(store.session(id: "s1")?.terminal == .ghostty, "resume re-detects")
+        #expect(!store.tabStillOpen(store.session(id: "s1")!),
+                "stale iTerm uuid on a ghostty session must not badge")
+    }
+
     @Test func acknowledgeOnlyDowngradesReady() {
         let store = SessionStore()
         store.apply(event("SessionStart", "startup"))

@@ -41,13 +41,17 @@ esac
 
 read -r STAMP DAY <<< "$(date '+%s %Y%m%d')"
 
-# ITERM_SESSION_ID comes from the environment, not JSON — escape it ourselves.
+# ITERM_SESSION_ID and TERM_PROGRAM come from the environment, not JSON —
+# escape them ourselves. TERM_PROGRAM identifies the hosting terminal
+# (e.g. ghostty) for sessions without an iTerm id.
 IT=${ITERM_SESSION_ID//\\/\\\\}
 IT=${IT//\"/\\\"}
+TP=${TERM_PROGRAM//\\/\\\\}
+TP=${TP//\"/\\\"}
 
 mkdir -p "$LOG_DIR" 2>/dev/null
-printf '{"v":1,"ts":%s,"event":"%s","detail":"%s","session_id":"%s","cwd":"%s","transcript":"%s","iterm":"%s","ppid":%s}\n' \
-  "$STAMP" "$EVENT" "$DETAIL" "$SID" "$CWD" "$TRANSCRIPT" "$IT" "${PPID:-0}" \
+printf '{"v":2,"ts":%s,"event":"%s","detail":"%s","session_id":"%s","cwd":"%s","transcript":"%s","iterm":"%s","term":"%s","ppid":%s}\n' \
+  "$STAMP" "$EVENT" "$DETAIL" "$SID" "$CWD" "$TRANSCRIPT" "$IT" "$TP" "${PPID:-0}" \
   >> "$LOG_DIR/events-$DAY.jsonl"
 
 exit 0

@@ -5,12 +5,14 @@ import Foundation
 /// <cwd>/.argus.json. All fields optional so a partial file only overrides
 /// what it names.
 struct ArgusConfig: Decodable {
-    var editor: String?             // app name for `open -a`
-    var linearWorkspace: String?    // linear.app/<slug>/issue/<ID>
-    var contextAlarm: Int?          // alarm threshold in percent (default 65)
-    var board: String?              // top-level in repo-local .argus.json
-    var github: String?             // top-level in repo-local .argus.json
-    var projects: [String: ProjectLinks]?   // global file: keyed by absolute cwd
+    // All fields default nil so the memberwise init tolerates new fields.
+    var editor: String? = nil           // app name for `open -a`
+    var terminal: String? = nil         // "iTerm2" | "Ghostty" (global-only)
+    var linearWorkspace: String? = nil  // linear.app/<slug>/issue/<ID>
+    var contextAlarm: Int? = nil        // alarm threshold in percent (default 65)
+    var board: String? = nil            // top-level in repo-local .argus.json
+    var github: String? = nil           // top-level in repo-local .argus.json
+    var projects: [String: ProjectLinks]? = nil  // global file: keyed by absolute cwd
 
     struct ProjectLinks: Decodable {
         var board: String?      // Linear fallback when branch has no ticket id
@@ -22,6 +24,12 @@ struct ArgusConfig: Decodable {
     /// The editor with the default applied — the one resolution rule for
     /// call sites that don't have a session cwd (e.g. opening the config).
     var effectiveEditor: String { editor ?? Self.defaultEditor }
+
+    /// Only the fallback for sessions whose terminal was never detected
+    /// (old logs, unsupported terminals) — live sessions carry their own.
+    var effectiveTerminal: TerminalApp {
+        terminal.flatMap(TerminalApp.init(configName:)) ?? .iterm
+    }
 
     static var globalPath: URL {
         FileManager.default.homeDirectoryForCurrentUser
