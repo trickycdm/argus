@@ -1,0 +1,12 @@
+.build/
+.swiftpm/
+Package.resolved
+dist/
+.DS_Store
+
+# Local-only planning and agent config — never committed
+plans/
+.claude/settings.local.json
+
+# Per-repo local overrides
+.argus.json
