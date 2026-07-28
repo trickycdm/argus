@@ -28,7 +28,11 @@ final class ArgusController {
             notifier.transition(session, from: old, to: new)
         }
         notifier.onNotificationTap = { [weak self] id in
-            guard let self, let session = self.store.session(id: id) else { return }
+            guard let self else { return }
+            guard let session = self.store.session(id: id) else {
+                NSLog("Argus: notification tap for unknown session \(id) — dropped")
+                return
+            }
             self.store.acknowledge(session)
             self.focusOrResume(session)
         }

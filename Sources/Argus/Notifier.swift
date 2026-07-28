@@ -52,7 +52,11 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
 
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 didReceive response: UNNotificationResponse) async {
+        // Only the plain click focuses a session — a future category action
+        // or dismiss must not silently trigger terminal focus.
+        guard response.actionIdentifier == UNNotificationDefaultActionIdentifier else { return }
         if let id = response.notification.request.content.userInfo["session_id"] as? String {
+            NSLog("Argus: notification tap for session \(id)")
             onNotificationTap?(id)
         }
     }
