@@ -20,4 +20,20 @@ import Testing
         #expect(Liveness.validatedStartTime(me, eventDate: Date(timeIntervalSince1970: 0)) == nil,
                 "own pid did not exist in 1970 — start time after event = recycled")
     }
+
+    @Test func claudeCLIPathClassification() {
+        #expect(Liveness.isClaudeCLI(path: "/Users/me/.local/share/claude/versions/2.1.219"),
+                "native installer runs a versioned binary — basename is the version")
+        #expect(Liveness.isClaudeCLI(path: "/Users/me/.local/bin/claude"),
+                "bare claude basename covers manual installs")
+        #expect(Liveness.isClaudeCLI(path: "/opt/homebrew/bin/claude"),
+                "Homebrew install is a bare claude basename")
+        #expect(!Liveness.isClaudeCLI(
+                    path: "/Users/me/Library/Application Support/Claude/claude-code/2.1.219/claude.app/Contents/MacOS/claude"),
+                "the desktop app's embedded agent is not a terminal session")
+        #expect(!Liveness.isClaudeCLI(path: "/usr/local/bin/claudette"),
+                "basename must be exactly claude")
+        #expect(!Liveness.isClaudeCLI(path: "/Applications/Claude.app/Contents/MacOS/Claude"),
+                "the desktop app itself never counts")
+    }
 }

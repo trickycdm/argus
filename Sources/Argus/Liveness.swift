@@ -37,10 +37,21 @@ enum Liveness {
         return current == startedAt
     }
 
-    /// Pids of running Claude CLI processes, identified by executable path.
+    /// Pure: true if an executable path looks like a terminal Claude CLI.
     /// The native installer runs `~/.local/share/claude/versions/<ver>`; a
-    /// plain `claude` basename covers Homebrew/manual installs. Blocking —
-    /// call off the main thread.
+    /// plain `claude` basename covers Homebrew/manual installs. The Claude
+    /// desktop app embeds its own agent binary (basename also `claude`)
+    /// inside an .app bundle under `…/Application Support/Claude/claude-code/`
+    /// — no terminal CLI lives inside an app bundle, so those are excluded.
+    static nonisolated func isClaudeCLI(path: String) -> Bool {
+        guard !path.contains(".app/Contents/MacOS/"),
+              !path.contains("/Claude/claude-code/") else { return false }
+        return path.contains("/share/claude/versions/")
+            || (path as NSString).lastPathComponent == "claude"
+    }
+
+    /// Pids of running Claude CLI processes, identified by executable path
+    /// via `isClaudeCLI`. Blocking — call off the main thread.
     static nonisolated func claudeCLIPids() -> Set<Int32> {
         var pids = [Int32](repeating: 0, count: 8192)
         let count = proc_listallpids(&pids, Int32(pids.count * MemoryLayout<Int32>.size))
@@ -50,9 +61,7 @@ enum Liveness {
         var buffer = [CChar](repeating: 0, count: 4096)
         for pid in pids.prefix(Int(count)) where pid > 0 {
             guard proc_pidpath(pid, &buffer, UInt32(buffer.count)) > 0 else { continue }
-            let path = String(cString: buffer)
-            if path.contains("/share/claude/versions/")
-                || (path as NSString).lastPathComponent == "claude" {
+            if isClaudeCLI(path: String(cString: buffer)) {
                 found.insert(pid)
             }
         }

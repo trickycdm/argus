@@ -118,6 +118,10 @@ struct OnboardingView: View {
                 .font(Deck.label(11))
                 .kerning(0.4)
                 .foregroundStyle(Deck.dim)
+            Text("SESSIONS ALREADY RUNNING AREN'T TRACKED — RESTART THEM TO MONITOR.")
+                .font(Deck.label(11))
+                .kerning(0.4)
+                .foregroundStyle(Deck.muted)
             if model.hookState == .missing {
                 if model.installerPath != nil {
                     HStack(spacing: 8) {
