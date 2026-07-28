@@ -206,6 +206,10 @@ final class SessionStore {
 
         if target == .ended || target == .dead {
             session.endedAt = date
+            // Background tasks are children of the claude process — they died
+            // with it. (A resume rewrites the transcript, which resets and
+            // replays this set anyway.)
+            session.openBackgroundTasks = []
             live.removeAll { $0.id == session.id }
             if !history.contains(where: { $0.id == session.id }) {
                 history.insert(session, at: 0)

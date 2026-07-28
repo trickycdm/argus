@@ -16,7 +16,7 @@ hooks/argus-hook.sh ──▶ ~/Library/Application Support/Argus/events-YYYYMMD
                                      ▼
                                SessionStore ◀── Liveness (pid + start-time identity)
                                      │ state machine: 7 statuses
-                                     ├──▶ TranscriptReader (off-main JSONL parse → tokens, model, last line)
+                                     ├──▶ TranscriptReader (off-main JSONL parse → tokens, model, last line, open background tasks)
                                      ├──▶ Notifier (transitions + context alarm)
                                      ▼
                      MenuBarExtra popover (SessionListView / SessionRowView)
@@ -35,7 +35,7 @@ hooks/argus-hook.sh ──▶ ~/Library/Application Support/Argus/events-YYYYMMD
 | `EventLogTailer` | Tailing the daily log, replay, rollover, pruning | `onReplay` / `onEvent` |
 | `SessionStore` | The state machine, live/history partition, stall & liveness sweep | `apply(_:)` + pure `targetStatus` |
 | `Liveness` | Process identity `(pid, start time)`, CLI scan, staleness fallbacks | Pure statics |
-| `TranscriptReader` | Incremental transcript parse (off-main), cost estimate | `parse` (pure) / `apply` (MainActor) |
+| `TranscriptReader` | Incremental transcript parse (off-main), cost estimate, background-task tracking | `parse` (pure) / `apply` (MainActor) |
 | `ModelCatalog` | The one model table: context windows + pricing | Longest-prefix `entry(for:)` |
 | `Notifier` | macOS notifications, debounce, context alarm latch | `transition` / `checkContext` |
 | `RowActions` | Everything a row can do beyond focus | One object injected into views |
@@ -70,6 +70,7 @@ hooks/argus-hook.sh ──▶ ~/Library/Application Support/Argus/events-YYYYMMD
 | 2026-07 | Session/iTerm ids validated by shape, not escaped | They're hex-and-dash by construction; an allowlist is simpler and stronger than escaping arbitrary hostile input |
 | 2026-07 | Zero external dependencies | Trust (the app watches private work), build speed, and nothing to go stale |
 | 2026-07 | Swift 5 language mode on tools 6.0 | Strict concurrency migration is real work; honesty over a flag — see `steering/CONCURRENCY.md` |
+| 2026-07 | Background tasks tracked via transcript markers, not hooks or process scans | No hook fires at background completion (verified live; Pre/PostToolUse brackets the *launch*); transcript receipts carry structured ids and task-notifications close them. Process-tree scanning (shell-snapshot children of the session pid) works but is shells-only — kept as the fallback plan if the unstable transcript format drifts |
 
 ## Open items
 

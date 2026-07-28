@@ -13,7 +13,7 @@ Sources/Argus/
   App.swift            — composition root (ArgusController), AppDelegate, @main MenuBarExtra
   SessionStore.swift   — the state machine: apply/replay, live/history, stall & liveness sweep
   EventLogTailer.swift — tails the daily JSONL log (DispatchSource + 2s poll, rollover, pruning)
-  TranscriptReader.swift — incremental off-main transcript parse; tokens, model, last line, cost
+  TranscriptReader.swift — incremental off-main transcript parse; tokens, model, last line, cost, open background tasks
   Liveness.swift       — process identity (pid, kernel start time); CLI scan; staleness fallbacks
   ModelCatalog.swift   — THE model table: context windows + pricing, longest-prefix matched
   Models.swift         — SessionStatus, HookEvent (log schema), @Observable Session

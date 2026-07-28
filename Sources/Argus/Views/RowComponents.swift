@@ -118,6 +118,23 @@ struct GitChip: View {
     }
 }
 
+// MARK: - Background tasks chip
+
+/// "N BG" next to the title: background shells/agents this session launched
+/// that are still running — a turn can read STBY/REVIEW while these work on.
+/// Cyan (normal ops), never amber: nothing here needs the user to act.
+struct BackgroundTasksChip: View {
+    var count: Int
+
+    var body: some View {
+        Text("\(count) BG")
+            .font(Deck.label(11).monospacedDigit())
+            .kerning(0.6)
+            .foregroundStyle(Deck.cyan)
+            .help("\(count) background task\(count == 1 ? "" : "s") still running (shell or agent)")
+    }
+}
+
 // MARK: - Hover actions
 
 /// The three highest-value actions, revealed on hover over the trailing edge.

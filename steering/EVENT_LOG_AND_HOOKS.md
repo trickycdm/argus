@@ -23,6 +23,7 @@
 
 - **`TranscriptReader` keeps a per-session byte-offset cursor** and reads only new bytes; a shrunken transcript (resume/compaction) resets the cursor and the token totals. Consume only complete lines; leave the trailing partial for next time.
 - **Sidechain (subagent) usage never updates `contextTokens`** — subagents have their own context window; only main-chain prompt size approximates occupancy.
+- **Background tasks open only on structured receipt fields** (`toolUseResult.backgroundTaskId`; `agentId` + `"async_launched"`), **and close only on `<task-id>` tags in non-assistant lines** — assistant lines quote receipts and tags verbatim (tool inputs, echoed output), so content-text matching produces false opens/closes. Hooks can't replace this: nothing fires at background completion. Track ids and counts only; task prompts and output never leave the parser (privacy invariant).
 - **`ModelCatalog` is the only model table.** Context windows and pricing live there with longest-prefix matching; adding a model family is one `Entry`. Never add a second model list or inline price.
 
 ## Verification

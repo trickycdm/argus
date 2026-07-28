@@ -76,7 +76,7 @@ To remove: `./scripts/uninstall-hooks.sh` and quit the app.
 
 Click a row to jump to that session's terminal tab. Right-click for the rest: open in editor, open on GitHub (derived from `git remote`), open in Linear (ticket id parsed from the branch name, e.g. `feat/ENG-123`, else a configured board URL), copy session id or resume command, mark reviewed, snooze notifications 1h, end session (SIGTERM, confirmed). Hovering a row reveals editor/GitHub/snooze shortcuts.
 
-Rows show project name, git branch, a working-tree chip (`●dirty ↑ahead ↓behind`), time in state, the last assistant message, and model + token count with estimated cost. History rows from earlier today can be resumed with a click (`claude --resume` in a fresh tab; iTerm2 rows that still have their tab open focus it instead — Ghostty has no per-session identity once claude exits, so its history rows always resume).
+Rows show project name, git branch, a working-tree chip (`●dirty ↑ahead ↓behind`), a `N BG` chip while background shells or agents the session launched are still running (a turn can end with work still in flight — the turn-end notification says so too), time in state, the last assistant message, and model + token count with estimated cost. History rows from earlier today can be resumed with a click (`claude --resume` in a fresh tab; iTerm2 rows that still have their tab open focus it instead — Ghostty has no per-session identity once claude exits, so its history rows always resume).
 
 Config lives at `~/.config/argus/config.json` (created by setup, or on first gear-click):
 

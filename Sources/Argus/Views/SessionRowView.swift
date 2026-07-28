@@ -29,6 +29,9 @@ struct SessionRowView: View {
                         if let git = session.gitState {
                             GitChip(state: git)
                         }
+                        if !session.openBackgroundTasks.isEmpty {
+                            BackgroundTasksChip(count: session.openBackgroundTasks.count)
+                        }
                         if actions.isSnoozed(session) {
                             Image(systemName: "bell.slash")
                                 .font(.system(size: 9))
