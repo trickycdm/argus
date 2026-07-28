@@ -22,9 +22,7 @@ That's the job here. You're running four Claude Code sessions across four repos,
 
 Argus tells you.
 
-<!-- screenshot: drop a popover screenshot at docs/assets/screenshot.png and uncomment
-<p align="center"><img src="docs/assets/screenshot.png" width="440" alt="The Argus popover: session rows with context gauges and annunciators"></p>
--->
+<p align="center"><img src="docs/assets/screenshot.png" width="440" alt="The Argus popover: session rows with context ring gauges, annunciators, elapsed time, and token cost"></p>
 
 ## A glass cockpit for your sessions
 
@@ -46,12 +44,14 @@ The menu bar icon is the summary instrument: an exclamation eye with the blocked
 
 ## How it works
 
-```
-Claude Code hooks ──▶ hooks/argus-hook.sh ──▶ ~/Library/Application Support/Argus/events-YYYYMMDD.jsonl
-                                                              │
-                                              Argus.app tails the log, rebuilds
-                                              per-session state, enriches from
-                                              transcripts, checks pid liveness
+```mermaid
+flowchart TD
+    A["Claude Code lifecycle events (7 hook points)"]
+    B["hooks/argus-hook.sh<br/>one JSON line per event, ~10ms, always exits 0"]
+    C["events-YYYYMMDD.jsonl<br/>~/Library/Application Support/Argus/"]
+    D["Argus.app<br/>rebuilds session state · enriches from transcripts · checks pid liveness"]
+    E["Menu bar + popover<br/>notifications · click-to-focus iTerm2"]
+    A --> B --> C -->|tail| D --> E
 ```
 
 - **The hook** is ~50 lines of dependency-free bash that appends one JSON line per Claude Code lifecycle event: `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `Notification`, `Stop`, `SessionEnd`. It also captures `ITERM_SESSION_ID` (click-to-focus) and `$PPID` (liveness). It runs synchronously inside your sessions, so it is built to be unnoticeable: no forks, ~10ms, always exits 0.
