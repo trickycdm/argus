@@ -23,6 +23,7 @@
 
 - **`scripts/bundle.sh` produces an ad-hoc-signed app** — fine for personal/open-source use; Gatekeeper on other machines will require right-click-Open. There is no notarisation pipeline; do not claim otherwise anywhere user-facing.
 - **The bundle's Info.plist is `scripts/Info.plist`** — edit it there, never inside `dist/` (which is disposable build output).
+- **The app icon is the committed `scripts/AppIcon.icns`**, generated from `scripts/AppIcon.svg` by `scripts/make-icon.sh` (sips + iconutil, system tools only). Edit the SVG and regenerate — never the .icns by hand; `bundle.sh` copies it into `Contents/Resources` before signing, so a missing .icns fails the bundle loudly.
 
 ## Verification
 

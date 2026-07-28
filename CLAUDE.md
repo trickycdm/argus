@@ -32,7 +32,7 @@ Sources/Argus/
   Views/               — Flight Deck UI incl. OnboardingView; Theme.swift holds ALL color/font tokens (Deck)
 Tests/ArgusTests/      — Swift Testing suite (~1s); event() builder in TestSupport.swift
 hooks/argus-hook.sh    — the capture hook installed into ~/.claude/settings.json
-scripts/               — bundle.sh (dist/Argus.app), install-/uninstall-hooks.sh, Info.plist
+scripts/               — bundle.sh (dist/Argus.app), install-/uninstall-hooks.sh, Info.plist, app icon (AppIcon.svg → make-icon.sh → AppIcon.icns)
 ```
 
 Data flow, module table, decision log: [`docs/architecture.md`](docs/architecture.md).

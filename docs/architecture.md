@@ -77,5 +77,4 @@ hooks/argus-hook.sh ──▶ ~/Library/Application Support/Argus/events-YYYYMMD
 - **Accessibility:** no `.accessibilityLabel`s, fixed point sizes, no Dynamic Type; status is color + word, which helps but hasn't been audited.
 - **Pricing/window staleness:** `ModelCatalog` is hardcoded and will drift as models ship; costs are estimates by design.
 - **Midnight rollover** re-materializes spanning sessions on their first event after the switch.
-- **App icon** — the bundle ships without one.
 - **Localization:** UI strings are inline English.

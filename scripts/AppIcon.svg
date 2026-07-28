@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Argus app icon: an instrument-style eye on the Flight Deck panel.
+       Master artwork for scripts/make-icon.sh (sips rasterises via CoreSVG,
+       so flat shapes only — no filters, gradients, or text). Palette mirrors
+       Views/Theme.swift; macOS applies its own icon treatment, so no baked
+       shadow. Standard icon grid: 824×824 panel, 100px transparent margins. -->
+
+  <!-- panel -->
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="#0C1826" stroke="#16293A" stroke-width="8"/>
+
+  <!-- bezel ticks: 12 radial marks, altimeter-style, r 312→348 -->
+  <g stroke="#46617A" stroke-width="10" stroke-linecap="round">
+    <line x1="824" y1="512" x2="860" y2="512"/>
+    <line x1="782.2" y1="668" x2="813.4" y2="686"/>
+    <line x1="668" y1="782.2" x2="686" y2="813.4"/>
+    <line x1="512" y1="824" x2="512" y2="860"/>
+    <line x1="356" y1="782.2" x2="338" y2="813.4"/>
+    <line x1="241.8" y1="668" x2="210.6" y2="686"/>
+    <line x1="200" y1="512" x2="164" y2="512"/>
+    <line x1="241.8" y1="356" x2="210.6" y2="338"/>
+    <line x1="356" y1="241.8" x2="338" y2="210.6"/>
+    <line x1="512" y1="200" x2="512" y2="164"/>
+    <line x1="668" y1="241.8" x2="686" y2="210.6"/>
+    <line x1="782.2" y1="356" x2="813.4" y2="338"/>
+  </g>
+
+  <!-- eye almond (sclera): solid fill so it survives 16px -->
+  <path d="M 232 512 C 340 285 684 285 792 512 C 684 739 340 739 232 512 Z" fill="#DFE9F2"/>
+
+  <!-- iris / pupil ring / catchlight -->
+  <circle cx="512" cy="512" r="150" fill="#55C8E8"/>
+  <circle cx="512" cy="512" r="66" fill="#0C1826"/>
+  <circle cx="472" cy="472" r="26" fill="#DFE9F2"/>
+</svg>

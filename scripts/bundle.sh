@@ -14,6 +14,7 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
 cp "$BIN/Argus" "$APP/Contents/MacOS/Argus"
 cp "$REPO_DIR/scripts/Info.plist" "$APP/Contents/Info.plist"
+cp "$REPO_DIR/scripts/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
 
 codesign --force -s - "$APP"
 
