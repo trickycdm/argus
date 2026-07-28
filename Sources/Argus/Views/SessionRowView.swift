@@ -55,10 +55,11 @@ struct SessionRowView: View {
                             .font(Deck.label(12).monospacedDigit())
                             .foregroundStyle(timeColor)
                     }
-                    if session.tokens.total > 0 {
+                    if session.tokens.total > 0 || session.model != nil {
                         Text(tokenSummary)
                             .font(Deck.label(11).monospacedDigit())
                             .foregroundStyle(Deck.dim)
+                            .help(session.model ?? "")
                     }
                 }
             }
@@ -104,10 +105,16 @@ struct SessionRowView: View {
     }
 
     private var tokenSummary: String {
-        var text = Format.tokens(session.tokens.total)
-        if let cost = session.costUSD, cost >= 0.01 {
-            text += " · $\(String(format: "%.2f", cost))"
+        var parts: [String] = []
+        if let model = session.model {
+            parts.append(Format.modelName(model))
         }
-        return text
+        if session.tokens.total > 0 {
+            parts.append(Format.tokens(session.tokens.total))
+        }
+        if let cost = session.costUSD, cost >= 0.01 {
+            parts.append("$\(String(format: "%.2f", cost))")
+        }
+        return parts.joined(separator: " · ")
     }
 }

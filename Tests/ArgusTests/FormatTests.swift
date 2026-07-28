@@ -19,6 +19,21 @@ import Testing
         #expect(Format.tokens(2_300_000) == "2.3M tok")
     }
 
+    @Test func modelDisplayNames() {
+        #expect(Format.modelName("claude-fable-5") == "Fable 5")
+        #expect(Format.modelName("claude-opus-4-6") == "Opus 4.6")
+        #expect(Format.modelName("claude-sonnet-4-5-20250929") == "Sonnet 4.5",
+                "date stamp is not a version component")
+        #expect(Format.modelName("claude-3-5-haiku-20241022") == "Haiku 3.5",
+                "old version-before-family ids still resolve")
+        #expect(Format.modelName("us.anthropic.claude-sonnet-4-5-20250929-v1:0") == "Sonnet 4.5",
+                "Bedrock-style prefix and suffix are ignored")
+        #expect(Format.modelName("claude-3-5-sonnet-latest") == "Sonnet 3.5",
+                "family is the first digit-free token")
+        #expect(Format.modelName("claude-42") == "claude-42",
+                "no family word → raw id passes through")
+    }
+
     @Test func oneLineTruncation() {
         #expect(TranscriptReader.oneLine("  first line  \nsecond") == "first line")
         let long = String(repeating: "a", count: 150)
