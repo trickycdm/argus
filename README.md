@@ -1,6 +1,48 @@
-# Argus 👁
+<div align="center">
 
-The hundred-eyed watchman for your Claude Code sessions. A native macOS menu bar app showing every running session at a glance: who's working, who's blocked waiting on you, who finished.
+# 👁 Argus
+
+**The hundred-eyed watchman for your Claude Code sessions.**
+
+A native macOS menu bar app that shows every running session at a glance:
+who's working, who's blocked on you, who finished.
+
+[![macOS 14+](https://img.shields.io/badge/macOS-14%2B-0C1826?logo=apple&logoColor=DFE9F2)](#install)
+[![Swift 6](https://img.shields.io/badge/Swift-6-F05138?logo=swift&logoColor=white)](Package.swift)
+[![Zero dependencies](https://img.shields.io/badge/dependencies-zero-63E6B0)](Package.swift)
+[![MIT](https://img.shields.io/badge/license-MIT-55C8E8)](LICENSE)
+
+</div>
+
+---
+
+In Greek myth, Argus Panoptes was the giant with a hundred eyes. Only a few ever closed to sleep, which is why Hera made him her watchman: nothing got past him.
+
+That's the job here. You're running four Claude Code sessions across four repos, and the moment one stops to ask permission, you're the bottleneck. Nobody tells you. The session just sits there, holding, while you're heads-down somewhere else.
+
+Argus tells you.
+
+<!-- screenshot: drop a popover screenshot at docs/assets/screenshot.png and uncomment
+<p align="center"><img src="docs/assets/screenshot.png" width="440" alt="The Argus popover: session rows with context gauges and annunciators"></p>
+-->
+
+## A glass cockpit for your sessions
+
+The popover reads like an instrument panel, not a dashboard of charts. One row per session. Each leads with a context-window ring gauge (read it like an N1 gauge: amber at 65%, with a macOS notification on crossing and re-arm below 60% after compaction) and carries an avionics-style annunciator:
+
+| | Annunciator | Meaning |
+|---|---|---|
+| 🟠 | **HOLD** | Blocked mid-turn: permission prompt, elicitation, or the agent needs your input |
+| 🔵 | **REVIEW** | Turn finished after real work (used tools). Something to look at |
+| 🟢 | **RUN** | Prompt submitted or tools firing. Pulses while it works |
+| 🟡 | **STALL** | Working but silent: 5 min without events (30 min inside a tool call, since long builds fire no hooks; transcript writes count as activity) |
+| ⚪ | **STBY** | At the prompt, nothing pending |
+| 🔴 | **LOST** | Process gone without a clean exit (history) |
+| ⚪ | **END** | Clean exit (history) |
+
+Avionics colour law applies throughout: amber only ever means *act now*. HOLD flashes, RUN breathes, and those are the only two animations in the app. Everything else holds steady so movement always means something.
+
+The menu bar icon is the summary instrument: an exclamation eye with the blocked count, a badged eye with the ready count when nothing is blocked, a plain eye when all is quiet. When a session flips to needs-you, a notification fires (60s per-session debounce), and clicking it jumps you to the exact iTerm2 tab and pane.
 
 ## How it works
 
@@ -12,38 +54,13 @@ Claude Code hooks ──▶ hooks/argus-hook.sh ──▶ ~/Library/Application 
                                               transcripts, checks pid liveness
 ```
 
-- **Hook script** (~40 lines of bash, <15ms, no dependencies) appends one JSON line per Claude Code lifecycle event: `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `Notification` (with `notification_type`, falling back to the message text), `Stop`, `SessionEnd`. It also captures `ITERM_SESSION_ID` (for click-to-focus) and `$PPID` (the claude process, for liveness).
-- **The app** never scrapes terminals. All state comes from the event log + transcript files + liveness checks. A process is identified by `(pid, kernel start time)` — never by name, because the Claude CLI sets its process title to a bare version string.
-
-## Status model
-
-Two axes: what the conversation is doing, and whether the process is alive.
-The UI is a "Flight Deck" instrument panel: each row leads with a context-window
-ring gauge (amber at ≥65%, with a macOS notification on crossing — re-arms
-below 60% after compaction) and carries an avionics-style annunciator
-(HOLD / REVIEW / RUN / STALL / STBY).
-
-| Dot | Status | Meaning |
-|---|---|---|
-| 🟠 | needs you | blocked mid-turn: permission prompt / elicitation / agent needs input |
-| 🔵 | ready | turn finished after real work (used tools) — review it |
-| 🟢 (pulsing) | working | UserPromptSubmit / tool activity |
-| 🟡 | stalled | working but silent: 5 min without events (30 min inside a tool call, since long builds fire no hooks; transcript mtime also counts as activity) |
-| ⚪ | idle | at the prompt, nothing pending (fresh/resumed session, or a bare Q&A turn) |
-| 🔴 | dead | process gone without a clean `SessionEnd` (history) |
-| ⚪ | ended | clean exit (history) |
-
-The menu bar icon shows the blocked count (exclamation eye) or the ready count (badged eye) when nothing is blocked. A macOS notification fires when a session transitions to needs-you (60s per-session debounce); "Notify on turn end" also covers ready. Clicking a notification focuses the session's iTerm tab. Focusing a ready session acknowledges it back to standby, so ready-counts mean "unseen".
-
-## Row actions
-
-Right-click any session row: focus tab, open in editor, open on GitHub (derived from `git remote`), open in Linear (ticket id parsed from the branch name, e.g. `feat/ENG-123`, else a configured board URL), copy session id / resume command, mark reviewed, snooze notifications 1h, end session (SIGTERM, confirmed). Hovering a row reveals editor/GitHub/snooze shortcuts. Rows also show a git chip (`●dirty ↑ahead ↓behind`, refreshed when the popover opens).
-
-Config: `~/.config/argus/config.json` — `editor` (app name for `open -a`, default Zed), `linearWorkspace` (linear.app/&lt;slug&gt;), `contextAlarm` (context-window alert threshold as a percent, default 65, clamped 10–95), and per-project `projects.<cwd>.{board,github}` overrides. A repo can override any of these with a `.argus.json` (top-level `editor`/`linearWorkspace`/`board`/`github`). Click a row to jump to that exact iTerm2 tab/pane. Rows show project name, git branch, time in current state, last assistant message, and token count / ~cost.
+- **The hook** is ~50 lines of dependency-free bash that appends one JSON line per Claude Code lifecycle event: `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `Notification`, `Stop`, `SessionEnd`. It also captures `ITERM_SESSION_ID` (click-to-focus) and `$PPID` (liveness). It runs synchronously inside your sessions, so it is built to be unnoticeable: no forks, ~10ms, always exits 0.
+- **The app** never scrapes terminals. All state comes from the event log, transcript files, and liveness checks. A process is identified by `(pid, kernel start time)`, never by name, because the Claude CLI sets its process title to a bare version string.
+- **Privacy is structural**: zero external dependencies, no network calls, no telemetry, and transcript content never leaves your screen. An app that watches your coding sessions should have nothing to hide.
 
 ## Install
 
-Requirements: macOS 14+, Swift toolchain (Xcode or Command Line Tools), `python3` (used once by the hook installer to merge JSON), and [iTerm2](https://iterm2.com) — click-to-focus and resume are iTerm2-only; there is no Terminal.app fallback.
+Requirements: macOS 14+, a Swift toolchain (Xcode or Command Line Tools), `python3` (used once by the hook installer to merge JSON), and [iTerm2](https://iterm2.com). Click-to-focus and resume are iTerm2-only; there is no Terminal.app fallback.
 
 ```sh
 ./scripts/install-hooks.sh     # merges hooks into ~/.claude/settings.json (backup kept, idempotent)
@@ -51,27 +68,45 @@ Requirements: macOS 14+, Swift toolchain (Xcode or Command Line Tools), `python3
 open dist/Argus.app
 ```
 
-On first launch, approve the notification permission prompt. On first row-click, approve the "Argus wants to control iTerm2" Automation prompt. Running Claude sessions pick up the hooks on their next session start.
+On first launch, approve the notification prompt. On first row-click, approve the "Argus wants to control iTerm2" Automation prompt. Running Claude sessions pick up the hooks on their next session start.
 
 For autostart: `cp -R dist/Argus.app /Applications/` and add it as a Login Item in System Settings.
 
 To remove: `./scripts/uninstall-hooks.sh` and quit the app.
 
+## Working the panel
+
+Click a row to jump to that session's iTerm2 tab. Right-click for the rest: open in editor, open on GitHub (derived from `git remote`), open in Linear (ticket id parsed from the branch name, e.g. `feat/ENG-123`, else a configured board URL), copy session id or resume command, mark reviewed, snooze notifications 1h, end session (SIGTERM, confirmed). Hovering a row reveals editor/GitHub/snooze shortcuts.
+
+Rows show project name, git branch, a working-tree chip (`●dirty ↑ahead ↓behind`), time in state, the last assistant message, and token count with estimated cost. History rows from earlier today can be resumed with a click (`claude --resume` in a fresh tab).
+
+Config lives at `~/.config/argus/config.json`:
+
+| Key | Does |
+|---|---|
+| `editor` | App name for `open -a` (default Zed) |
+| `linearWorkspace` | Your linear.app/&lt;slug&gt; |
+| `contextAlarm` | Alarm threshold in percent (default 65, clamped 10–95) |
+| `projects.<cwd>.{board,github}` | Per-project link overrides |
+
+Any repo can override these locally with a `.argus.json` (top-level `editor`/`linearWorkspace`/`board`/`github`).
+
 ## Dev
 
 ```sh
-swift run        # full UI + state machine; notifications fall back to NSLog (no bundle id)
+swift build && swift test    # the whole gate, runs in about a second
+swift run                    # full UI; notifications fall back to NSLog (no bundle)
 ```
 
-Smoke-test the hook: `echo '{"session_id":"t","cwd":"/tmp","transcript_path":""}' | ./hooks/argus-hook.sh Stop`
+Zero external dependencies is deliberate, and it keeps the loop honest: the entire app builds in ~1s. Steering docs for AI-assisted development live in [CLAUDE.md](CLAUDE.md) and [steering/](steering); architecture and the decision log are in [docs/architecture.md](docs/architecture.md).
 
 ## Limitations (v1)
 
-- Sessions spanning midnight re-materialize on their first event after rollover.
+- Sessions spanning midnight re-materialise on their first event after rollover.
 - Cost is an estimate ("~$") from per-turn transcript usage and a hardcoded price map; treat `/cost` as authoritative.
-- Claude Code only (adapters for other agent CLIs would slot in at the event-log layer).
-- iTerm2 only for focus/resume (see Install requirements).
+- Claude Code only. Adapters for other agent CLIs would slot in at the event-log layer.
+- iTerm2 only for focus/resume (see Install).
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT, see [LICENSE](LICENSE). Named for the watchman, built for the people running him ragged.
