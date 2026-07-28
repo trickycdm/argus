@@ -130,13 +130,50 @@ private struct ListHeightKey: PreferenceKey {
 
 extension SessionListView {
 
-    /// MenuBarExtra window-style popovers have no dismiss API; closing the
-    /// key window is the accepted approach. Gives click feedback and lets
-    /// the terminal come to the front. The onboarding window can also be key
-    /// — never close that one from here.
+    /// MenuBarExtra window-style popovers have no dismiss API, and closing
+    /// the popover's NSWindow directly desyncs MenuBarExtra's internal
+    /// presented state — the next status-item click toggles the already-
+    /// closed popover "off", so reopening takes two clicks. Instead, mimic
+    /// the user clicking the status item: MenuBarExtra closes the popover
+    /// through its own path and its state stays in sync.
     static func dismissPopover() {
-        guard let window = NSApp.keyWindow, !(window is OnboardingWindow) else { return }
-        window.close()
+        // performClick toggles — act only while the popover is actually on
+        // screen, so a dismiss racing a natural close (another app
+        // activating) can't reopen it.
+        guard let popover = NSApp.windows.first(where: {
+            $0.className.contains("MenuBarExtraWindow")
+        }) else {
+            NSLog("Argus: MenuBarExtra popover window not found — dismiss skipped")
+            return
+        }
+        guard popover.isVisible else { return }
+
+        guard let button = statusItemButton(), button.state != .off else {
+            // Non-toggling fallback: dismisses, at worst with the stale-
+            // toggle quirk this path exists to avoid.
+            NSLog("Argus: status-item button not found — closing popover directly")
+            popover.close()
+            return
+        }
+        button.performClick(button)
+    }
+
+    /// The MenuBarExtra's status-item button, reached via its status-bar
+    /// window. Multi-display setups add replicant status windows; prefer a
+    /// button wired to a target (the one driving the MenuBarExtra).
+    private static func statusItemButton() -> NSStatusBarButton? {
+        let buttons = NSApp.windows
+            .filter { $0.className.contains("NSStatusBarWindow") }
+            .compactMap { $0.contentView.flatMap(statusBarButton(in:)) }
+        return buttons.first { $0.target != nil } ?? buttons.first
+    }
+
+    private static func statusBarButton(in view: NSView) -> NSStatusBarButton? {
+        if let button = view as? NSStatusBarButton { return button }
+        for subview in view.subviews {
+            if let found = statusBarButton(in: subview) { return found }
+        }
+        return nil
     }
 
     private var header: some View {
@@ -189,7 +226,7 @@ extension SessionListView {
                 .kerning(1.2)
                 .foregroundStyle(Deck.dim)
             Button(action: {
-                Self.dismissPopover()   // while the popover is still key
+                Self.dismissPopover()
                 onOpenSetup()
             }) {
                 Text("SETUP")

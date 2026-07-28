@@ -127,10 +127,6 @@ final class OnboardingModel {
     }
 }
 
-/// Distinct NSWindow subclass so SessionListView.dismissPopover can tell the
-/// onboarding window apart from the MenuBarExtra panel it wants to close.
-final class OnboardingWindow: NSWindow {}
-
 /// Presents the first-run checklist as an AppKit window. Deliberately not a
 /// SwiftUI Window scene: on macOS 14 (our floor) scenes are restored/shown
 /// at launch — `.defaultLaunchBehavior(.suppressed)` is macOS 15+. The app
@@ -139,7 +135,7 @@ final class OnboardingWindow: NSWindow {}
 @MainActor
 final class OnboardingWindowController: NSObject, NSWindowDelegate {
     private let notifier: Notifier
-    private var window: OnboardingWindow?
+    private var window: NSWindow?
     /// Fires on any close (completed or skipped) so config gets re-applied.
     var onFinished: (() -> Void)?
 
@@ -156,7 +152,7 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
         let model = OnboardingModel(config: ArgusConfig.loadGlobal(), notifier: notifier)
         model.finish = { [weak self] _ in self?.window?.close() }
         let hosting = NSHostingView(rootView: OnboardingView(model: model))
-        let window = OnboardingWindow(
+        let window = NSWindow(
             contentRect: .zero,
             styleMask: [.titled, .closable, .fullSizeContentView],
             backing: .buffered, defer: false)

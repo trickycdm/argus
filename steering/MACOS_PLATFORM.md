@@ -5,7 +5,7 @@
 ## App shape
 
 - **Argus is a `MenuBarExtra(.window)` accessory app.** `LSUIElement` in the bundle's Info.plist keeps it out of the Dock; `AppDelegate` also sets `.accessory` so `swift run` (no bundle) behaves the same. There is no main window — the one exception is the transient onboarding window (`OnboardingWindowController`: AppKit `NSWindow` + `NSHostingView`, presented with `NSApp.activate` while staying `.accessory`, because a SwiftUI `Window` scene is created at launch on macOS 14 — `.defaultLaunchBehavior(.suppressed)` is 15+). New persistent surfaces still belong in the popover or the row context menu, not in new windows.
-- **MenuBarExtra window-style popovers have no dismiss API.** Closing the key window (`SessionListView.dismissPopover`) is the accepted approach — guarded so it never closes the onboarding window when that is key. SwiftUI `.alert`/`.confirmationDialog` don't reliably present from these panels on macOS 14 — use `NSAlert` with `NSApp.activate` first (exemplar: `RowActions.endSession`).
+- **MenuBarExtra window-style popovers have no dismiss API.** Dismiss by mimicking a status-item click (`SessionListView.dismissPopover`: find the `NSStatusBarButton`, `performClick`) so MenuBarExtra's internal presented state stays in sync — closing the popover's window directly desyncs it and the status item then needs two clicks to reopen. `performClick` toggles, so the helper acts only while the popover window is actually visible. SwiftUI `.alert`/`.confirmationDialog` don't reliably present from these panels on macOS 14 — use `NSAlert` with `NSApp.activate` first (exemplar: `RowActions.endSession`).
 
 ## Notifications
 
