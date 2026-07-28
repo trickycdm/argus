@@ -42,6 +42,9 @@ hooks/argus-hook.sh ──▶ ~/Library/Application Support/Argus/events-YYYYMMD
 | `TerminalFocus` | Per-session backend dispatch (`TerminalApp` detect/config fallback) | `focus`/`resume` + shared `runOsascript` |
 | `ITermFocus` / `GhosttyFocus` | AppleScript bridges (iTerm by session uuid; Ghostty by claude pid) | Pure script builders, tested without osascript |
 | `Subprocess` / `Escape` | The only process spawner; escaping/validation | Used by everything that shells out |
+| `Config` / `ConfigWriter` | Read config + non-clobbering raw-dict writer | `resolved(for:)` / `merged` (pure) |
+| `HookInstall` | Hook detection in `~/.claude/settings.json`, installer location | Pure `isInstalled` / `installerCandidates` |
+| `OnboardingWindowController` | First-run checklist window (AppKit) + `OnboardingModel` | `OnboardingFlow.needsOnboarding` (pure) |
 | `Views/` | Flight Deck UI (`Deck` tokens in `Theme.swift`) | Pure rendering over `@Observable` state |
 
 ## Decision log
@@ -58,6 +61,9 @@ hooks/argus-hook.sh ──▶ ~/Library/Application Support/Argus/events-YYYYMMD
 | 2026-07 | iTerm2-only focus (no Terminal.app fallback) — *superseded by per-session multi-backend below* | iTerm's AppleScript sessions expose stable ids; Terminal's don't map to Claude sessions reliably |
 | 2026-07 | Per-session terminal auto-detect (iTerm2 + Ghostty), config only as fallback | One global setting misroutes mixed usage; the hook already sees each session's environment |
 | 2026-07 | Ghostty ended sessions always resume — no tab-open badge | Ghostty has no per-session identity that outlives the claude process (pid dies with it); honest degrade beats a wrong badge |
+| 2026-07 | Config writer = raw-dict merge; `ArgusConfig` stays Decodable-only | An Encodable round-trip silently deletes keys it doesn't know (hand-added or from a newer Argus) |
+| 2026-07 | Onboarding is an AppKit window, not a SwiftUI `Window` scene | On macOS 14 (our floor) scenes are created at launch; `.defaultLaunchBehavior(.suppressed)` is 15+ |
+| 2026-07 | First-run gate is an Int `onboardingVersion`, recorded on any close | Bumping the version re-runs setup after material changes; recording on skip/close means it never nags |
 | 2026-07 | `@Observable` + `@MainActor` classes, closure wiring | Small object graph; a DI framework or Combine would be pure overhead here |
 | 2026-07 | Elapsed labels via `TimelineView`, not an observable clock | A ticking observable re-rendered the whole tree every second, popover open or not — battery cost for an all-day app |
 | 2026-07 | One `Subprocess` helper with concurrent pipe drains | Two hand-rolled wrappers both deadlocked on >64KB output; the fix belongs in exactly one place |

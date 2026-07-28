@@ -18,15 +18,18 @@ Sources/Argus/
   ModelCatalog.swift   — THE model table: context windows + pricing, longest-prefix matched
   Models.swift         — SessionStatus, HookEvent (log schema), @Observable Session
   Notifier.swift       — UNUserNotificationCenter: transitions, context alarm latch, debounce
+  Prefs.swift          — UserDefaults keys (notify toggle, onboarding version)
   Subprocess.swift     — the one process spawner + Escape (AppleScript/shell escaping, id validation)
   GitState.swift       — porcelain-v2 parse, remote → browsable URL
   TerminalFocus.swift  — TerminalApp (per-session detect) + backend dispatch, shared osascript runner
   ITermFocus.swift     — iTerm2 AppleScript bridge: focus by session uuid, list tabs, resume
   GhosttyFocus.swift   — Ghostty (1.3+) AppleScript bridge: focus by claude pid, resume
   RowActions.swift     — everything a row can do (editor/GitHub/Linear/copy/snooze/end)
-  Config.swift         — ~/.config/argus/config.json + per-repo .argus.json merge
+  Config.swift         — config read + merge, and ConfigWriter (non-clobbering raw-dict writer)
+  HookInstall.swift    — hook detection in ~/.claude/settings.json; installer location
+  OnboardingWindowController.swift — first-run checklist window (AppKit) + OnboardingModel
   Format.swift         — pure display formatting
-  Views/               — Flight Deck UI; Theme.swift holds ALL color/font tokens (Deck)
+  Views/               — Flight Deck UI incl. OnboardingView; Theme.swift holds ALL color/font tokens (Deck)
 Tests/ArgusTests/      — Swift Testing suite (~1s); event() builder in TestSupport.swift
 hooks/argus-hook.sh    — the capture hook installed into ~/.claude/settings.json
 scripts/               — bundle.sh (dist/Argus.app), install-/uninstall-hooks.sh, Info.plist

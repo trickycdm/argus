@@ -6,6 +6,7 @@ struct SessionListView: View {
     var focus: (Session) -> Void
     var focusOrResume: (Session) -> Void
     var onAppearRefresh: () -> Void
+    var onOpenSetup: () -> Void
 
     @AppStorage(Prefs.notifyOnStop) private var notifyOnStop = false
     @State private var historyExpanded = false
@@ -131,9 +132,11 @@ extension SessionListView {
 
     /// MenuBarExtra window-style popovers have no dismiss API; closing the
     /// key window is the accepted approach. Gives click feedback and lets
-    /// the terminal come to the front.
+    /// the terminal come to the front. The onboarding window can also be key
+    /// — never close that one from here.
     static func dismissPopover() {
-        NSApp.keyWindow?.close()
+        guard let window = NSApp.keyWindow, !(window is OnboardingWindow) else { return }
+        window.close()
     }
 
     private var header: some View {
@@ -185,6 +188,17 @@ extension SessionListView {
                 .font(Deck.label(11).monospacedDigit())
                 .kerning(1.2)
                 .foregroundStyle(Deck.dim)
+            Button(action: {
+                Self.dismissPopover()   // while the popover is still key
+                onOpenSetup()
+            }) {
+                Text("SETUP")
+                    .font(Deck.display(11))
+                    .kerning(1.4)
+                    .foregroundStyle(Deck.muted)
+            }
+            .buttonStyle(.plain)
+            .help("Reopen setup (editor, terminal, hooks, notifications)")
             Button(action: { NSApp.terminate(nil) }) {
                 Text("QUIT")
                     .font(Deck.display(11))

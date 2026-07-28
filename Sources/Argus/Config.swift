@@ -84,3 +84,68 @@ struct ArgusConfig: Decodable {
         var github: String?
     }
 }
+
+/// Writes config fields without disturbing anything else in the file.
+/// ArgusConfig stays Decodable-only on purpose: an Encodable round-trip
+/// would silently drop keys it doesn't know about — hand-added keys, or
+/// fields written by a newer Argus — where the raw-dictionary merge
+/// preserves them by construction.
+enum ConfigWriter {
+    /// One-line docs per key, emitted as an inert "_docs" object in fresh
+    /// files — JSON has no comments, and decoders ignore unknown keys.
+    static let docs: [String: String] = [
+        "editor": "App name for `open -a`, e.g. Zed / Visual Studio Code / Cursor",
+        "terminal": "Terminal for sessions Argus can't identify: iTerm2 or Ghostty",
+        "linearWorkspace": "Linear workspace slug used for branch-ticket deep links",
+        "contextAlarm": "Context-window alarm threshold in percent (10-95)",
+        "projects": "Per-repo overrides keyed by absolute path: {board, github}",
+    ]
+
+    static let defaults: [String: Any] = [
+        "editor": ArgusConfig.defaultEditor,
+        "terminal": TerminalApp.iterm.rawValue,
+        "contextAlarm": ContextAlarm.defaultPercent,
+    ]
+
+    struct MalformedConfig: Error, LocalizedError {
+        var errorDescription: String? {
+            "existing config isn't a JSON object — fix it by hand first"
+        }
+    }
+
+    /// Pure merge. nil existing → documented scaffold (docs + defaults) with
+    /// `fields` applied over it. Existing content must parse to an object or
+    /// this throws — never clobber a file that can't be read back. Only keys
+    /// named in `fields` change; everything else survives untouched.
+    static func merged(existingJSON: Data?, setting fields: [String: Any]) throws -> Data {
+        var dict: [String: Any]
+        if let existingJSON {
+            guard let parsed = try? JSONSerialization.jsonObject(with: existingJSON),
+                  let object = parsed as? [String: Any] else {
+                throw MalformedConfig()
+            }
+            dict = object
+        } else {
+            dict = defaults
+            dict["_docs"] = docs
+        }
+        for (key, value) in fields { dict[key] = value }
+        return try JSONSerialization.data(withJSONObject: dict,
+                                          options: [.prettyPrinted, .sortedKeys])
+    }
+
+    /// Read-merge-write, creating ~/.config/argus as needed; atomic.
+    static func write(fields: [String: Any], to url: URL = ArgusConfig.globalPath) throws {
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
+                                                withIntermediateDirectories: true)
+        let existing = try? Data(contentsOf: url)
+        try merged(existingJSON: existing, setting: fields).write(to: url, options: .atomic)
+    }
+
+    /// Creates the documented scaffold only when the file is absent —
+    /// `open -a` refuses to launch an editor on a missing path.
+    static func ensureFileExists(at url: URL = ArgusConfig.globalPath) throws {
+        guard !FileManager.default.fileExists(atPath: url.path) else { return }
+        try write(fields: [:], to: url)
+    }
+}

@@ -60,12 +60,11 @@ The signal path above is the whole architecture: hooks in, log file, one app tai
 Requirements: macOS 14+, a Swift toolchain (Xcode or Command Line Tools), `python3` (used once by the hook installer to merge JSON), and [iTerm2](https://iterm2.com) and/or [Ghostty](https://ghostty.org) 1.3+ (whose AppleScript support is a preview feature — leave `macos-applescript` enabled). Each session's terminal is auto-detected; there is no Terminal.app fallback.
 
 ```sh
-./scripts/install-hooks.sh     # merges hooks into ~/.claude/settings.json (backup kept, idempotent)
 ./scripts/bundle.sh            # builds dist/Argus.app (ad-hoc signed)
 open dist/Argus.app
 ```
 
-On first launch, approve the notification prompt. On first row-click, approve the per-terminal Automation prompt (iTerm2 and Ghostty each prompt once). Running Claude sessions pick up the hooks on their next session start.
+First launch opens a setup window: pick your editor and terminal, install the capture hooks from there (or run `./scripts/install-hooks.sh` by hand — backup kept, idempotent), and approve the notification prompt. On first row-click, approve the per-terminal Automation prompt (iTerm2 and Ghostty each prompt once). Running Claude sessions pick up the hooks on their next session start. Re-run setup any time from the popover footer's SETUP button.
 
 For autostart: `cp -R dist/Argus.app /Applications/` and add it as a Login Item in System Settings.
 
@@ -77,7 +76,7 @@ Click a row to jump to that session's terminal tab. Right-click for the rest: op
 
 Rows show project name, git branch, a working-tree chip (`●dirty ↑ahead ↓behind`), time in state, the last assistant message, and model + token count with estimated cost. History rows from earlier today can be resumed with a click (`claude --resume` in a fresh tab; iTerm2 rows that still have their tab open focus it instead — Ghostty has no per-session identity once claude exits, so its history rows always resume).
 
-Config lives at `~/.config/argus/config.json`:
+Config lives at `~/.config/argus/config.json` (created by setup, or on first gear-click):
 
 | Key | Does |
 |---|---|

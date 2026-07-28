@@ -22,8 +22,32 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         guard hasBundle else { return }
         // Delegate must be set before launch finishes to receive cold-launch
         // taps — guaranteed because ArgusController is built during App init.
+        // Authorization is NOT requested here: onboarding owns that prompt on
+        // first run; the controller requests at launch for everyone else.
         UNUserNotificationCenter.current().delegate = self
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+    }
+
+    /// Idempotent — the system only prompts while status is notDetermined.
+    /// The completion fires after the user answers (or immediately when
+    /// already determined), on the main actor.
+    func requestAuthorization(completion: (@MainActor () -> Void)? = nil) {
+        guard hasBundle else {
+            completion?()
+            return
+        }
+        UNUserNotificationCenter.current()
+            .requestAuthorization(options: [.alert, .sound]) { _, _ in
+                guard let completion else { return }
+                Task { @MainActor in completion() }
+            }
+    }
+
+    /// nil = no bundle (`swift run`/`swift test`), where the notification
+    /// center would crash — callers render it as "N/A".
+    func authorizationStatus() async -> UNAuthorizationStatus? {
+        guard hasBundle else { return nil }
+        return await UNUserNotificationCenter.current()
+            .notificationSettings().authorizationStatus
     }
 
     func userNotificationCenter(_ center: UNUserNotificationCenter,
@@ -104,10 +128,4 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         UNUserNotificationCenter.current().add(request)
     }
 
-}
-
-/// UserDefaults keys shared between views and the notifier.
-enum Prefs {
-    /// The "Notify on turn end" footer toggle.
-    static let notifyOnStop = "notifyOnStop"
 }

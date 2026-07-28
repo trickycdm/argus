@@ -10,10 +10,13 @@ final class ArgusController {
     let transcripts = TranscriptReader()
     let notifier = Notifier()
     let actions: RowActions
+    let onboarding: OnboardingWindowController
 
     init() {
         actions = RowActions(store: store, notifier: notifier)
+        onboarding = OnboardingWindowController(notifier: notifier)
         Self.applyConfig(actions.config)
+        onboarding.onFinished = { [weak self] in self?.reloadConfig() }
         tailer.onReplay = { [store] events in store.replay(events) }
         tailer.onEvent = { [store] event in store.apply(event) }
         store.onTranscriptRefresh = { [transcripts, notifier] session in
@@ -31,6 +34,16 @@ final class ArgusController {
         }
         store.start()
         tailer.start()
+
+        let completed = UserDefaults.standard.integer(forKey: Prefs.onboardingVersion)
+        if OnboardingFlow.needsOnboarding(completedVersion: completed) {
+            // First run: onboarding owns the notification prompt (its step
+            // explains it). The Task hop defers presentation until after App
+            // init, so the window isn't ordered front mid-launch.
+            Task { @MainActor [onboarding] in onboarding.present() }
+        } else {
+            notifier.requestAuthorization()
+        }
     }
 
     func focus(_ session: Session) {
@@ -74,6 +87,16 @@ final class ArgusController {
         }
     }
 
+    /// Re-reads the global config and pushes it everywhere it applies —
+    /// popover open and onboarding completion share this path.
+    func reloadConfig() {
+        actions.config = ArgusConfig.loadGlobal()
+        Self.applyConfig(actions.config)
+        if ArgusConfig.globalLoadError() != nil {
+            store.showAlert("Config malformed — check ~/.config/argus/config.json")
+        }
+    }
+
     /// Called when the popover appears: marks history rows whose tab is
     /// open, re-reads config, and refreshes git chips for live sessions.
     func refreshOnPopoverOpen() {
@@ -86,11 +109,7 @@ final class ArgusController {
         } else {
             store.openItermUUIDs = []
         }
-        actions.config = ArgusConfig.loadGlobal()
-        Self.applyConfig(actions.config)
-        if ArgusConfig.globalLoadError() != nil {
-            store.showAlert("Config malformed — check ~/.config/argus/config.json")
-        }
+        reloadConfig()
         for session in store.live {
             let stale = session.gitStateFetchedAt
                 .map { Date().timeIntervalSince($0) > 15 } ?? true
@@ -119,7 +138,8 @@ struct ArgusApp: App {
                 actions: controller.actions,
                 focus: { controller.focus($0) },
                 focusOrResume: { controller.focusOrResume($0) },
-                onAppearRefresh: { controller.refreshOnPopoverOpen() }
+                onAppearRefresh: { controller.refreshOnPopoverOpen() },
+                onOpenSetup: { controller.onboarding.present() }
             )
         } label: {
             MenuBarLabel(needsYouCount: controller.store.needsYouCount,

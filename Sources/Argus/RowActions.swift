@@ -99,12 +99,25 @@ final class RowActions {
         kill(pid, SIGTERM)   // SessionEnd hook fires → store transitions naturally
     }
 
-    /// Opens the global config in the configured editor (footer gear).
+    /// Opens the global config in the configured editor (footer gear),
+    /// scaffolding the file on first use. The popover dismisses only on
+    /// success so a failure's amber strip stays visible.
     func openConfig() {
+        do {
+            try ConfigWriter.ensureFileExists()
+        } catch {
+            store.showAlert("Couldn't create config — \(error.localizedDescription)")
+            return
+        }
         let editor = config.effectiveEditor
-        Task {
-            _ = await Subprocess.run("/usr/bin/open",
-                                     ["-a", editor, ArgusConfig.globalPath.path])
+        Task { [store] in
+            let result = await Subprocess.run("/usr/bin/open",
+                                              ["-a", editor, ArgusConfig.globalPath.path])
+            if result.status == 0 {
+                SessionListView.dismissPopover()
+            } else {
+                store.showAlert("Couldn't open config in \(editor)")
+            }
         }
     }
 

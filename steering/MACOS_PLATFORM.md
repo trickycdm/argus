@@ -4,13 +4,13 @@
 
 ## App shape
 
-- **Argus is a `MenuBarExtra(.window)` accessory app.** `LSUIElement` in the bundle's Info.plist keeps it out of the Dock; `AppDelegate` also sets `.accessory` so `swift run` (no bundle) behaves the same. There is no main window — do not add one; new surfaces belong in the popover or the row context menu.
-- **MenuBarExtra window-style popovers have no dismiss API.** Closing the key window (`SessionListView.dismissPopover`) is the accepted approach. SwiftUI `.alert`/`.confirmationDialog` don't reliably present from these panels on macOS 14 — use `NSAlert` with `NSApp.activate` first (exemplar: `RowActions.endSession`).
+- **Argus is a `MenuBarExtra(.window)` accessory app.** `LSUIElement` in the bundle's Info.plist keeps it out of the Dock; `AppDelegate` also sets `.accessory` so `swift run` (no bundle) behaves the same. There is no main window — the one exception is the transient onboarding window (`OnboardingWindowController`: AppKit `NSWindow` + `NSHostingView`, presented with `NSApp.activate` while staying `.accessory`, because a SwiftUI `Window` scene is created at launch on macOS 14 — `.defaultLaunchBehavior(.suppressed)` is 15+). New persistent surfaces still belong in the popover or the row context menu, not in new windows.
+- **MenuBarExtra window-style popovers have no dismiss API.** Closing the key window (`SessionListView.dismissPopover`) is the accepted approach — guarded so it never closes the onboarding window when that is key. SwiftUI `.alert`/`.confirmationDialog` don't reliably present from these panels on macOS 14 — use `NSAlert` with `NSApp.activate` first (exemplar: `RowActions.endSession`).
 
 ## Notifications
 
 - **`UNUserNotificationCenter` requires a real `.app` bundle** — it throws under `swift run` *and* `swift test`. Every path into it is gated on `Notifier.hasBundle` (which checks for a `.app` bundle path, not just a bundle id); ungated calls will crash the dev loop. The NSLog fallback is the designed dev-mode behaviour, not a stub.
-- **The notification delegate must be installed before launch finishes** to receive cold-launch taps — guaranteed because `ArgusController` (which builds `Notifier`) is created during `App` init. Don't move that construction later.
+- **The notification delegate must be installed before launch finishes** to receive cold-launch taps — guaranteed because `ArgusController` (which builds `Notifier`) is created during `App` init. Don't move that construction later. Authorization is requested separately: at launch for users past onboarding, from the onboarding notifications step otherwise — keep every `UNUserNotificationCenter` call behind `hasBundle`.
 
 ## AppleScript & automation (terminals)
 
@@ -26,7 +26,7 @@
 
 ## Verification
 
-1. `./scripts/bundle.sh && open dist/Argus.app` — menu-bar icon appears, popover opens, no Dock icon.
-2. Notification paths: only testable from the bundled app (grant the permission prompt on first launch).
+1. `./scripts/bundle.sh && open dist/Argus.app` — menu-bar icon appears, popover opens, no Dock icon; first run also presents the onboarding window.
+2. Notification paths: only testable from the bundled app (grant the prompt via onboarding's ENABLE button, or at launch once onboarding is recorded).
 3. Focus/resume paths: click a row with its terminal running (iTerm2 and Ghostty each); the first click per terminal must show that terminal's Automation prompt, not a silent failure.
 4. Ghostty-only check: quit iTerm2, open the popover — iTerm2 must not launch.
