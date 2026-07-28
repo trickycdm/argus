@@ -1,6 +1,8 @@
 <div align="center">
 
-# 👁 Argus
+<img src="docs/assets/icon.png" width="128" alt="The Argus app icon: an instrument-style eye with bezel ticks on a dark Flight Deck panel">
+
+# Argus
 
 **The hundred-eyed watchman for your Claude Code sessions.**
 

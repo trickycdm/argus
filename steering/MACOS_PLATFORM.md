@@ -27,6 +27,7 @@
 
 ## Verification
 
+0. **Reproduce bundled-app bug reports against a fresh bundle before reading code.** The running Argus.app (dist/ or /Applications) can be arbitrarily stale — "feature X does nothing" is often behaviour that already works at HEAD but isn't in the binary the user launched. Rebundle, relaunch, then diagnose.
 1. `./scripts/bundle.sh && open dist/Argus.app` — menu-bar icon appears, popover opens, no Dock icon; first run also presents the onboarding window.
 2. Notification paths: only testable from the bundled app (grant the prompt via onboarding's ENABLE button, or at launch once onboarding is recorded).
 3. Focus/resume paths: click a row with its terminal running (iTerm2 and Ghostty each); the first click per terminal must show that terminal's Automation prompt, not a silent failure.
