@@ -1,0 +1,55 @@
+<svg viewBox="0 0 904 848" xmlns="http://www.w3.org/2000/svg" font-family="Avenir Next Condensed, Helvetica Neue, Arial, sans-serif">
+  <defs>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="12" stdDeviation="17" flood-color="#000000" flood-opacity="0.55"/>
+    </filter>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#55C8E8"/>
+    </marker>
+  </defs>
+
+  <!-- panel -->
+  <rect x="56" y="44" width="792" height="756" rx="24" fill="#0C1826" stroke="#16293A" stroke-width="2" filter="url(#shadow)"/>
+
+  <!-- header -->
+  <text x="104" y="106" fill="#DFE9F2" font-size="26" font-weight="600" letter-spacing="5">SIGNAL PATH</text>
+  <text x="800" y="106" fill="#46617A" font-size="16" letter-spacing="2.5" text-anchor="end">NO SCRAPING · NO NETWORK</text>
+  <line x1="57" y1="134" x2="847" y2="134" stroke="#10202E" stroke-width="2"/>
+
+  <!-- stage 1 -->
+  <rect x="192" y="170" width="520" height="84" rx="8" fill="#0E1C2B" stroke="#24405A" stroke-width="1.5"/>
+  <text x="452" y="206" fill="#DFE9F2" font-size="23" font-weight="600" letter-spacing="3" text-anchor="middle">CLAUDE CODE SESSIONS</text>
+  <text x="452" y="236" fill="#6F92AB" font-size="16" letter-spacing="1.5" text-anchor="middle">7 LIFECYCLE HOOK POINTS</text>
+
+  <line x1="452" y1="254" x2="452" y2="292" stroke="#55C8E8" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="472" y="280" fill="#46617A" font-size="14" letter-spacing="2">EMIT</text>
+
+  <!-- stage 2 -->
+  <rect x="192" y="298" width="520" height="84" rx="8" fill="#0E1C2B" stroke="#24405A" stroke-width="1.5"/>
+  <text x="452" y="334" fill="#DFE9F2" font-size="23" font-weight="600" letter-spacing="3" text-anchor="middle">ARGUS-HOOK.SH</text>
+  <text x="452" y="364" fill="#6F92AB" font-size="16" letter-spacing="1.5" text-anchor="middle">ONE JSON LINE PER EVENT · ~10MS · ALWAYS EXITS 0</text>
+
+  <line x1="452" y1="382" x2="452" y2="420" stroke="#55C8E8" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="472" y="408" fill="#46617A" font-size="14" letter-spacing="2">APPEND</text>
+
+  <!-- stage 3 -->
+  <rect x="192" y="426" width="520" height="84" rx="8" fill="#0E1C2B" stroke="#24405A" stroke-width="1.5"/>
+  <text x="452" y="462" fill="#DFE9F2" font-size="23" font-weight="600" letter-spacing="3" text-anchor="middle">EVENTS-YYYYMMDD.JSONL</text>
+  <text x="452" y="492" fill="#6F92AB" font-size="16" letter-spacing="1.5" text-anchor="middle">APPEND-ONLY DAILY LOG · PRUNED AFTER 7 DAYS</text>
+
+  <line x1="452" y1="510" x2="452" y2="548" stroke="#55C8E8" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="472" y="536" fill="#46617A" font-size="14" letter-spacing="2">TAIL + REPLAY</text>
+
+  <!-- stage 4 -->
+  <rect x="192" y="554" width="520" height="84" rx="8" fill="#0E1C2B" stroke="#24405A" stroke-width="1.5"/>
+  <text x="452" y="590" fill="#DFE9F2" font-size="23" font-weight="600" letter-spacing="3" text-anchor="middle">ARGUS.APP</text>
+  <text x="452" y="620" fill="#6F92AB" font-size="16" letter-spacing="1.5" text-anchor="middle">STATE MACHINE · TRANSCRIPT ENRICHMENT · PID LIVENESS</text>
+
+  <line x1="452" y1="638" x2="452" y2="676" stroke="#55C8E8" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="472" y="664" fill="#46617A" font-size="14" letter-spacing="2">RENDER</text>
+
+  <!-- stage 5 -->
+  <rect x="192" y="682" width="520" height="84" rx="8" fill="#0E1C2B" stroke="#55C8E8" stroke-width="1.5" stroke-opacity="0.8"/>
+  <text x="452" y="718" fill="#DFE9F2" font-size="23" font-weight="600" letter-spacing="3" text-anchor="middle">MENU BAR + POPOVER</text>
+  <text x="452" y="748" fill="#6F92AB" font-size="16" letter-spacing="1.5" text-anchor="middle">ANNUNCIATORS · NOTIFICATIONS · CLICK-TO-FOCUS ITERM2</text>
+</svg>

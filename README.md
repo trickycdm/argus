@@ -22,7 +22,12 @@ That's the job here. You're running four Claude Code sessions across four repos,
 
 Argus tells you.
 
-<p align="center"><img src="docs/assets/screenshot.png" width="440" alt="The Argus popover: session rows with context ring gauges, annunciators, elapsed time, and token cost"></p>
+<table>
+<tr>
+<td width="50%"><img src="docs/assets/screenshot.png" alt="The Argus popover: session rows with context ring gauges, annunciators, elapsed time, and token cost"></td>
+<td width="50%"><img src="docs/assets/pipeline.svg" alt="Signal path: Claude Code hook events append to a daily JSONL log, which Argus tails to rebuild session state and render the menu bar popover"></td>
+</tr>
+</table>
 
 ## A glass cockpit for your sessions
 
@@ -44,15 +49,7 @@ The menu bar icon is the summary instrument: an exclamation eye with the blocked
 
 ## How it works
 
-```mermaid
-flowchart TD
-    A["Claude Code lifecycle events (7 hook points)"]
-    B["hooks/argus-hook.sh<br/>one JSON line per event, ~10ms, always exits 0"]
-    C["events-YYYYMMDD.jsonl<br/>~/Library/Application Support/Argus/"]
-    D["Argus.app<br/>rebuilds session state · enriches from transcripts · checks pid liveness"]
-    E["Menu bar + popover<br/>notifications · click-to-focus iTerm2"]
-    A --> B --> C -->|tail| D --> E
-```
+The signal path above is the whole architecture: hooks in, log file, one app tailing it.
 
 - **The hook** is ~50 lines of dependency-free bash that appends one JSON line per Claude Code lifecycle event: `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `Notification`, `Stop`, `SessionEnd`. It also captures `ITERM_SESSION_ID` (click-to-focus) and `$PPID` (liveness). It runs synchronously inside your sessions, so it is built to be unnoticeable: no forks, ~10ms, always exits 0.
 - **The app** never scrapes terminals. All state comes from the event log, transcript files, and liveness checks. A process is identified by `(pid, kernel start time)`, never by name, because the Claude CLI sets its process title to a bare version string.
