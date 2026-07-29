@@ -3,6 +3,10 @@ import SwiftUI
 struct SessionRowView: View {
     var session: Session
     var actions: RowActions
+    /// Set when this row is a background agent of a session listed directly
+    /// above it — indents the row and names its owner instead of letting it
+    /// read as an unrelated session in the same repo.
+    var nestedUnder: Session?
     var onTap: () -> Void
 
     @State private var hovering = false
@@ -10,14 +14,21 @@ struct SessionRowView: View {
     var body: some View {
         Button(action: onTap) {
             HStack(alignment: .center, spacing: 14) {
+                if nestedUnder != nil {
+                    // Elbow drawn rather than an indent alone: at a glance the
+                    // eye needs to see attachment, not just offset.
+                    Text("└─")
+                        .font(Deck.label(12))
+                        .foregroundStyle(Deck.dim)
+                }
                 ContextGauge(fraction: session.contextFraction)
 
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(alignment: .firstTextBaseline, spacing: 7) {
-                        Text(session.projectName.uppercased())
-                            .font(Deck.display(16))
+                        Text(rowTitle.uppercased())
+                            .font(Deck.display(nestedUnder == nil ? 16 : 13.5))
                             .kerning(0.8)
-                            .foregroundStyle(Deck.text)
+                            .foregroundStyle(nestedUnder == nil ? Deck.text : Deck.muted)
                             .lineLimit(1)
                         if let branch = session.gitBranch {
                             Text(branch)
@@ -66,8 +77,9 @@ struct SessionRowView: View {
                     }
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .padding(.leading, nestedUnder == nil ? 16 : 24)
+            .padding(.trailing, 16)
+            .padding(.vertical, nestedUnder == nil ? 12 : 9)
             .contentShape(Rectangle())
             .background(hovering ? Deck.cyan.opacity(0.05) : .clear)
         }
@@ -85,6 +97,15 @@ struct SessionRowView: View {
         }
         .onHover { hovering = $0 }
         .help("Click to focus this session's terminal tab · right-click for actions")
+    }
+
+    /// A nested row is titled by its role, not its directory — repeating the
+    /// owner's project name is what made it read as a duplicate session. The
+    /// directory is kept only when it actually differs from the owner's.
+    private var rowTitle: String {
+        guard let owner = nestedUnder else { return session.projectName }
+        return session.projectName == owner.projectName
+            ? "BG Agent" : "BG Agent · \(session.projectName)"
     }
 
     private var timeColor: Color {

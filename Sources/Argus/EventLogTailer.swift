@@ -1,9 +1,10 @@
 import Foundation
 
-/// Tails the daily Argus event log. Replays today's file on start (so app
-/// state is fully rebuilt from the log), then delivers new events as the
-/// hooks append them. DispatchSource does the low-latency work; a 2s timer
-/// covers file creation, midnight rollover, and coalesced-notification gaps.
+/// Tails the daily Argus event log. Replays yesterday's and today's files on
+/// start (so app state is fully rebuilt from the log), then delivers new
+/// events as the hooks append them. DispatchSource does the low-latency work;
+/// a 2s timer covers file creation, midnight rollover, and
+/// coalesced-notification gaps.
 @MainActor
 final class EventLogTailer {
     static nonisolated let defaultLogDir = FileManager.default.homeDirectoryForCurrentUser
@@ -28,12 +29,17 @@ final class EventLogTailer {
     func start() {
         pruneOldLogs()
         currentDay = Self.dayString(Date())
-        if openCurrentFile() {
-            onReplay?(drainEvents())
-            attachSource()
-        } else {
-            onReplay?([])
-        }
+        // Sessions routinely outlive midnight, and one parked at an idle
+        // prompt emits nothing to re-announce itself — replaying today's file
+        // alone leaves every overnight session invisible with no way back
+        // except restarting it. Yesterday's events go first so the whole
+        // replay stays in order; the store's liveness pass retires whatever
+        // didn't survive the night.
+        var replayed = readArchived(day: Self.dayString(Self.dayBefore(Date())))
+        let opened = openCurrentFile()
+        if opened { replayed += drainEvents() }
+        onReplay?(replayed)
+        if opened { attachSource() }
         timer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.poll() }
         }
@@ -62,6 +68,34 @@ final class EventLogTailer {
 
     private static func dayString(_ date: Date) -> String {
         dayFormatter.string(from: date)
+    }
+
+    /// Calendar-aware so a DST boundary can't land back on the same day.
+    static func dayBefore(_ date: Date) -> Date {
+        Calendar.current.date(byAdding: .day, value: -1, to: date)
+            ?? date.addingTimeInterval(-24 * 3600)
+    }
+
+    /// Reads a completed day's log in full, then leaves it closed — only
+    /// today's file is tailed. Malformed lines are counted, not logged one by
+    /// one: an archive replay would turn a corrupt file into a log flood.
+    private func readArchived(day: String) -> [HookEvent] {
+        let url = logDir.appendingPathComponent("events-\(day).jsonl")
+        guard let data = try? Data(contentsOf: url) else { return [] }
+        var events: [HookEvent] = []
+        var skipped = 0
+        for line in data.split(separator: UInt8(ascii: "\n"),
+                               omittingEmptySubsequences: true) {
+            if let event = try? decoder.decode(HookEvent.self, from: Data(line)) {
+                events.append(event)
+            } else {
+                skipped += 1
+            }
+        }
+        if skipped > 0 {
+            NSLog("Argus: skipped \(skipped) malformed line(s) in events-\(day).jsonl")
+        }
+        return events
     }
 
     private func openCurrentFile() -> Bool {

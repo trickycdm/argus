@@ -35,7 +35,8 @@ struct SessionListView: View {
                 ScrollView {
                     VStack(spacing: 0) {
                         ForEach(store.live) { session in
-                            SessionRowView(session: session, actions: actions) {
+                            SessionRowView(session: session, actions: actions,
+                                           nestedUnder: store.owner(of: session)) {
                                 focus(session)
                                 Self.dismissPopover()
                             }

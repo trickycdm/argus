@@ -67,6 +67,85 @@ import Testing
                 "a normal session in the same store still tracks")
     }
 
+    /// The daemon's spare-pty pool parents forks and human-driven sessions
+    /// from the same pid, so only the declared source can tell them apart.
+    @Test func daemonHostedSessionsTrackDespiteAClaudeParent() {
+        let store = SessionStore()
+        let pool = Int32(ProcessInfo.processInfo.processIdentifier)
+        let now = Int(Date().timeIntervalSince1970)
+        store.apply(event("SessionStart", "fork", sid: "fork1", ppid: pool, ts: now))
+        #expect(store.live.isEmpty, "a fork from the pool is still dropped")
+
+        store.apply(event("SessionStart", "clear", sid: "user1", ppid: pool, ts: now))
+        store.apply(event("Notification", "permission_prompt", sid: "user1",
+                          ppid: pool, ts: now))
+        #expect(store.live.count == 1, "a cleared session sharing that parent is a row")
+        #expect(store.live.first?.status == .needsYou,
+                "and its permission prompt reaches the user")
+    }
+
+    /// A working background agent must not outrank the idle terminal that owns
+    /// it — side by side at top level they read as two sessions in one repo.
+    @Test func backgroundAgentNestsUnderItsOwningSession() {
+        let store = SessionStore()
+        store.apply(event("SessionStart", "startup", sid: "term"))
+        store.apply(event("SessionStart", "clear", sid: "agent"))
+        store.apply(event("UserPromptSubmit", sid: "agent"))
+
+        guard let term = store.session(id: "term"),
+              let agent = store.session(id: "agent") else {
+            Issue.record("both sessions should be tracked"); return
+        }
+        #expect(term.status == .idle && agent.status == .working,
+                "idle owner, working agent — the order a flat sort gets wrong")
+        // Stand in for the process walk: the agent runs in the daemon pool
+        // (71502) whose ancestry roots at the terminal's own pid (13122).
+        term.pid = 13122
+        term.ownerPid = 13122
+        agent.pid = 71502
+        agent.ownerPid = 13122
+        store.apply(event("PostToolUse", sid: "agent"))  // triggers a resort
+
+        #expect(store.live.map(\.id) == ["term", "agent"],
+                "the agent is seated under its owner, not sorted above it")
+        #expect(store.owner(of: agent)?.id == "term", "and the view can name that owner")
+        #expect(store.owner(of: term) == nil, "a terminal session is never nested")
+        #expect(agent.isBackgroundAgent && !term.isBackgroundAgent,
+                "only the pool-hosted session is an agent")
+    }
+
+    @Test func orphanedBackgroundAgentStaysATopLevelRow() {
+        let store = SessionStore()
+        store.apply(event("SessionStart", "clear", sid: "agent"))
+        guard let agent = store.session(id: "agent") else {
+            Issue.record("session should be tracked"); return
+        }
+        agent.pid = 71502
+        agent.ownerPid = 13122  // owner never emitted events — not tracked
+        store.apply(event("UserPromptSubmit", sid: "agent"))
+
+        #expect(store.live.map(\.id) == ["agent"], "it still gets a row")
+        #expect(store.owner(of: agent) == nil, "with no owner to nest under")
+    }
+
+    @Test func historyKeepsOnlyTodaysEndedSessions() {
+        let store = SessionStore()
+        let midnight = Calendar.current.startOfDay(for: Date())
+        let lastNight = Int(midnight.timeIntervalSince1970) - 3600
+        let thisMorning = Int(midnight.timeIntervalSince1970) + 3600
+
+        store.replay([
+            event("SessionStart", "startup", sid: "yesterday", ts: lastNight),
+            event("SessionEnd", "other", sid: "yesterday", ts: lastNight),
+            event("SessionStart", "startup", sid: "today", ts: thisMorning),
+            event("SessionEnd", "other", sid: "today", ts: thisMorning),
+        ])
+        #expect(store.history.map(\.id) == ["today"],
+                "replay reaches back a day, but history stays a today view")
+        #expect(store.session(id: "yesterday") == nil,
+                "the pruned session's id is forgotten too")
+    }
+
     @Test func infraSessionStartClassification() {
         #expect(SessionStore.infraSessionStart(event("SessionStart", "fork")),
                 "SessionStart with source fork is infrastructure")

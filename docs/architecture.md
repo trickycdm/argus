@@ -32,9 +32,9 @@ hooks/argus-hook.sh ──▶ ~/Library/Application Support/Argus/events-YYYYMMD
 |---|---|---|
 | `App` | Composition root (`ArgusController`), wiring, config application | Closure callbacks — no DI framework |
 | `hooks/argus-hook.sh` | Event capture inside Claude Code sessions | The JSONL schema (additive-only) |
-| `EventLogTailer` | Tailing the daily log, replay, rollover, pruning | `onReplay` / `onEvent` |
-| `SessionStore` | The state machine, live/history partition, stall & liveness sweep | `apply(_:)` + pure `targetStatus` |
-| `Liveness` | Process identity `(pid, start time)`, CLI scan, staleness fallbacks | Pure statics |
+| `EventLogTailer` | Two-day replay (yesterday + today), single-day tail, rollover, pruning | `onReplay` / `onEvent` |
+| `SessionStore` | State machine; today-only history; background agents nested by owner; liveness sweep | `apply(_:)` + pure `targetStatus` |
+| `Liveness` | Process identity `(pid, start time)`, ownership walk, CLI scan, staleness fallbacks | Pure statics |
 | `TranscriptReader` | Incremental transcript parse (off-main), cost estimate, background-task tracking | `parse` (pure) / `apply` (MainActor) |
 | `ModelCatalog` | The one model table: context windows + pricing | Longest-prefix `entry(for:)` |
 | `Notifier` | macOS notifications, debounce, context alarm latch | `transition` / `checkContext` |
@@ -71,12 +71,14 @@ hooks/argus-hook.sh ──▶ ~/Library/Application Support/Argus/events-YYYYMMD
 | 2026-07 | Zero external dependencies | Trust (the app watches private work), build speed, and nothing to go stale |
 | 2026-07 | Swift 5 language mode on tools 6.0 | Strict concurrency migration is real work; honesty over a flag — see `steering/CONCURRENCY.md` |
 | 2026-07 | Background tasks tracked via transcript markers, with a process-tree staleness guard for shells | No hook fires at background completion (verified live; Pre/PostToolUse brackets the *launch*); transcript receipts carry structured ids and task-notifications close them. Closes can be misdelivered (a fork's transcript received the parent's), so shell tasks are also cleared when the session pid holds no live shell children; agent tasks have no process to check |
-| 2026-07 | Agent-infrastructure sessions (fork subagents, daemon pools) are dropped | Global hooks fire inside claude-spawned claudes too; their rows read as duplicates, never SessionEnd, and their processes linger. Detected by `source == "fork"` plus parent-is-a-claude-CLI on a validated pid; the same parent rule excludes them from the untracked-CLI count. Fork agents surface via the parent row's BG chip instead |
+| 2026-07 | Fork subagents are dropped, identified only by `source == "fork"` | Global hooks fire inside them too and their rows read as duplicates of the session they forked from (they surface on that row's BG chip instead). Deliberately *not* by parent process: the daemon's spare-pty pool parents forks and human-driven sessions from one pid, so a claude parent discarded real sessions and their permission prompts. `Liveness.hasClaudeCLIParent` is now scoped to excluding the daemon's own subprocesses from the untracked-CLI count |
+| 2026-07 | A background agent nests under the session that owns it, resolved by process ancestry | The daemon's pool hosts real sessions, so they must be tracked — but a pool-hosted agent and the terminal that spawned it are one unit of work, and as sibling rows in the same repo they read as duplicate sessions. `Liveness.owningSessionPid` walks to the top-level claude; `resort` seats the agent after its owner so a working agent can't outrank the idle terminal it belongs to. Orphans (owner untracked) stay top-level — nesting is presentation, never suppression |
+| 2026-07 | Replay spans yesterday + today; `history` prunes to today | Sessions outlive midnight, and one idle at a prompt emits nothing to re-announce itself — a today-only replay hid every overnight session behind an "untracked, restart to monitor" hint while its full history sat in the previous day's file. Only today's file is tailed; `validatedStartTime` already stops a recycled pid resurrecting a dead session, so the extra day costs nothing in correctness |
 
 ## Open items
 
 - **No CI.** The test suite runs locally only; nothing mechanically gates a PR.
 - **Accessibility:** no `.accessibilityLabel`s, fixed point sizes, no Dynamic Type; status is color + word, which helps but hasn't been audited.
 - **Pricing/window staleness:** `ModelCatalog` is hardcoded and will drift as models ship; costs are estimates by design.
-- **Midnight rollover** re-materializes spanning sessions on their first event after the switch.
+- **History empties at midnight under a running app.** `pruneHistoryBeforeToday` rides the 15s liveness sweep, so a session finished at 23:55 drops out of "EARLIER TODAY" seconds into the new day. Live sessions are unaffected (they survive rollover in memory, and a relaunch replays two days), but there is no "last 24h" view.
 - **Localization:** UI strings are inline English.

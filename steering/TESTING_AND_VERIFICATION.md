@@ -22,6 +22,7 @@
 - Suites that touch `@MainActor` state are `@MainActor @Suite`; anything mutating process-wide state (`Session.contextAlarmAt`) is `.serialized` and restores the value in a `defer`.
 - The `event()` builder in `TestSupport.swift` is the one way to fabricate hook events.
 - Tests assert observable behaviour through public API (`store.apply`, `store.live`), not internals.
+- **Assert the case that discriminates.** An expected result the naive implementation also produces proves nothing: `ready` outranks `working`, so owner-before-agent ordering looked correct under a flat sort and would have inverted the moment the owning session went idle. Choose inputs that fail without the fix, not the inputs you happened to observe.
 
 ## Manual verification (the untestable shell)
 
@@ -29,7 +30,7 @@ Run the subset your change touches, from the bundled app (`./scripts/bundle.sh &
 
 1. **Notifications:** trigger a needs-you transition; banner appears, clicking it focuses the tab.
 2. **Focus/resume:** click a live row (focuses the exact iTerm pane); click a history row without an open tab (new tab runs `claude --resume`).
-3. **Replay:** quit and relaunch with today's log populated — sessions rebuild, ended sessions stay in history, nothing resurrects as RUN.
+3. **Replay:** quit and relaunch with both yesterday's and today's logs populated — sessions rebuild, ones still running from yesterday come back live, today's ended sessions stay in history while yesterday's are pruned out, and nothing resurrects as RUN.
 4. **Install round-trip:** `install-hooks.sh` then `uninstall-hooks.sh` against a copy of `~/.claude/settings.json` leaves it as it started.
 
 ## The gate

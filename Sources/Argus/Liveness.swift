@@ -67,20 +67,55 @@ enum Liveness {
         return Int32(info.pbi_ppid)
     }
 
-    /// True if a process's parent is itself a Claude CLI. A claude process
-    /// parented by another claude is agent infrastructure — fork subagents,
-    /// spare daemon pools — never a user terminal session (those are parented
-    /// by a shell or terminal).
+    /// True if a process's parent is itself a Claude CLI — which makes it part
+    /// of the daemon's own tree (`bg-pty-host`, `bg-spare`) rather than a
+    /// top-level session process, so `claudeCLIPids` skips it.
+    ///
+    /// Says nothing about the session running inside: the daemon's spare-pty
+    /// pool hosts human-driven sessions, which is why session classification
+    /// goes by SessionStart source instead (`SessionStore.infraSessionStart`).
     static nonisolated func hasClaudeCLIParent(_ pid: Int32) -> Bool {
         guard let ppid = parentPid(pid), ppid > 1,
               let path = executablePath(ppid) else { return false }
         return isClaudeCLI(path: path)
     }
 
-    /// Pids of running user-facing Claude CLI processes, identified by
-    /// executable path via `isClaudeCLI`, excluding agent infrastructure
-    /// (claude processes parented by another claude — see
-    /// `hasClaudeCLIParent`). Blocking — call off the main thread.
+    /// The top-level Claude CLI at the root of `pid`'s claude ancestry — the
+    /// terminal process that owns whatever session runs under `pid`.
+    ///
+    /// A terminal session's own pid has a shell parent, so it resolves to
+    /// itself. A session hosted by the daemon's spare-pty pool walks up
+    /// `bg-spare → bg-pty-host → daemon → terminal`, which is how a background
+    /// agent is attributed to the session that launched it. Returns nil when
+    /// `pid` isn't a Claude CLI at all. Blocking — call off the main thread.
+    static nonisolated func owningSessionPid(_ pid: Int32) -> Int32? {
+        owningSessionPid(pid, parent: parentPid, isClaudeCLI: { child in
+            executablePath(child).map(isClaudeCLI(path:)) ?? false
+        })
+    }
+
+    /// Pure: the ancestry walk behind `owningSessionPid`, with the two process
+    /// lookups injected so the real daemon topology can be tested without one.
+    static nonisolated func owningSessionPid(_ pid: Int32,
+                                             parent: (Int32) -> Int32?,
+                                             isClaudeCLI: (Int32) -> Bool) -> Int32? {
+        guard pid > 0, isClaudeCLI(pid) else { return nil }
+        var current = pid
+        // Hop cap: a process tree can't cycle, but a reparent mid-walk could
+        // otherwise spin. Real chains are four deep.
+        for _ in 0..<8 {
+            guard let next = parent(current), next > 1,
+                  isClaudeCLI(next) else { return current }
+            current = next
+        }
+        return current
+    }
+
+    /// Pids of running top-level Claude CLI processes, identified by executable
+    /// path via `isClaudeCLI`, excluding the daemon's own subprocesses (claude
+    /// parented by another claude — see `hasClaudeCLIParent`) so a session
+    /// hosted by the spare-pty pool is counted once, under the pid its hook
+    /// events report. Blocking — call off the main thread.
     static nonisolated func claudeCLIPids() -> Set<Int32> {
         var pids = [Int32](repeating: 0, count: 8192)
         let count = proc_listallpids(&pids, Int32(pids.count * MemoryLayout<Int32>.size))

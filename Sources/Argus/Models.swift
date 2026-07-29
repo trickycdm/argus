@@ -63,6 +63,17 @@ final class Session: Identifiable {
     /// Kernel start time of `pid`, captured when first seen — liveness checks
     /// compare against it to detect pid reuse without trusting process names.
     var pidStartTime: UInt64?
+    /// Top-level Claude CLI owning this session's process tree
+    /// (`Liveness.owningSessionPid`). Equals `pid` for a terminal session; for
+    /// one hosted by the daemon's spare-pty pool it's the terminal that
+    /// launched the daemon, which is how a background agent finds its owner.
+    var ownerPid: Int32?
+    /// True when this session runs somewhere other than its owning terminal —
+    /// i.e. it's a background agent of another session, not a peer.
+    var isBackgroundAgent: Bool {
+        guard let ownerPid, let pid else { return false }
+        return ownerPid != pid
+    }
     var transcriptPath: String?
     /// Host terminal, detected from hook data; nil = unknown (old logs or an
     /// unsupported terminal) — flows fall back to the config default.

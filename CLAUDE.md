@@ -11,10 +11,10 @@ This is the **canonical steering context** for the repo, loaded natively by Clau
 ```
 Sources/Argus/
   App.swift            — composition root (ArgusController), AppDelegate, @main MenuBarExtra
-  SessionStore.swift   — the state machine: apply/replay, live/history, stall & liveness sweep
-  EventLogTailer.swift — tails the daily JSONL log (DispatchSource + 2s poll, rollover, pruning)
+  SessionStore.swift   — the state machine: apply/replay, live/history (today only), stall & liveness sweep, background-agent seating
+  EventLogTailer.swift — tails today's log; replays yesterday too on start (DispatchSource + 2s poll, rollover, pruning)
   TranscriptReader.swift — incremental off-main transcript parse; tokens, model, last line, cost, open background tasks
-  Liveness.swift       — process identity (pid, kernel start time); CLI scan; staleness fallbacks
+  Liveness.swift       — process identity (pid, kernel start time); CLI scan & ancestry walk; staleness fallbacks
   ModelCatalog.swift   — THE model table: context windows + pricing, longest-prefix matched
   Models.swift         — SessionStatus, HookEvent (log schema), @Observable Session
   Notifier.swift       — UNUserNotificationCenter: transitions, context alarm latch, debounce
@@ -46,6 +46,7 @@ Data flow, module table, decision log: [`docs/architecture.md`](docs/architectur
 - **Observer, not actor.** The only process-affecting actions are explicit user clicks: End Session (confirmed SIGTERM) and Resume. Do not add auto-acting paths.
 - **Privacy: never log transcript content, prompt text, or assistant messages** — session ids, paths, and counts only. No telemetry, no network (`steering/CODING_CONVENTIONS.md`).
 - **Process identity is `(pid, kernel start time)`, never name** — and replayed pids are validated against event timestamps so a recycled pid can't resurrect a dead session (`Liveness.validatedStartTime`).
+- **A session's kind is its own declaration, never its parent process.** Only `SessionStart source == "fork"` marks a session unattended; the daemon's spare-pty pool parents forks and human-driven sessions from one pid. The tree may *attribute* a session (`Liveness.owningSessionPid` nests a background agent under its owner) but never suppress one — twice now, suppressing by parent hid real sessions and a permission prompt (`steering/EVENT_LOG_AND_HOOKS.md`).
 - **Malformed input never crashes:** skip bad JSONL lines, tolerate missing transcripts, degrade tier-by-tier. No `try!`/force-unwraps in `Sources/`.
 - **All subprocess work goes through `Subprocess.run`** — never hand-rolled `Process`+`Pipe` (a pipe-buffer deadlock is why; `steering/CONCURRENCY.md`).
 - **Untrusted values never reach AppleScript/shell unvalidated:** session/iTerm ids pass `Escape.isUUIDLike`; everything else goes through the `Escape` helpers (`steering/MACOS_PLATFORM.md`).

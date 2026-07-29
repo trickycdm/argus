@@ -31,11 +31,14 @@ final class SessionStore {
     @ObservationIgnored var onTranscriptRefresh: ((Session) -> Void)?
 
     @ObservationIgnored private var byID: [String: Session] = [:]
-    /// Sessions born inside agent infrastructure (fork subagents, daemon
-    /// pools). The global hooks fire in those processes too, but they aren't
-    /// user terminal sessions: their rows read as duplicates of the parent,
-    /// they never fire SessionEnd, and their processes linger. Events for
-    /// these ids are dropped entirely.
+    /// Sessions born as fork subagents. The global hooks fire in those
+    /// processes too, but their rows read as duplicates of the session they
+    /// were forked from. Events for these ids are dropped entirely.
+    ///
+    /// Membership is decided by the session's own SessionStart source, never
+    /// by its parent process: the daemon's spare-pty pool (`claude bg-spare`)
+    /// parents forks and human-driven sessions alike, so a claude parent says
+    /// nothing about whether anyone is at the keyboard.
     @ObservationIgnored private var infraIDs: Set<String> = []
     @ObservationIgnored private var refreshWork: [String: DispatchWorkItem] = [:]
     @ObservationIgnored private var tickCount = 0
@@ -91,20 +94,19 @@ final class SessionStore {
 
     func replay(_ events: [HookEvent]) {
         for event in events { apply(event, quiet: true) }
-        checkLiveness()  // sessions from the log may be long gone
+        // Sessions from the log may be long gone. Retire them on this single
+        // check rather than granting the usual second opinion: the hysteresis
+        // exists to absorb a transient kill(2) failure against a *live*
+        // process, and waiting a sweep here would show every dead session in
+        // the log as live for the first 15 seconds after launch.
+        checkLiveness(retireOnFirstCheck: true)
         for session in live { onTranscriptRefresh?(session) }
         resort()
     }
 
     func apply(_ event: HookEvent, quiet: Bool = false) {
         guard !infraIDs.contains(event.sessionId) else { return }
-        // The live parent check only runs on a validated pid — a replayed,
-        // recycled ppid can point at an unrelated claude-parented process
-        // (an MCP server, say) and must not condemn a real session.
-        if byID[event.sessionId] == nil,
-           Self.infraSessionStart(event)
-            || (Liveness.validatedStartTime(event.ppid, eventDate: event.date) != nil
-                && Liveness.hasClaudeCLIParent(event.ppid)) {
+        if byID[event.sessionId] == nil, Self.infraSessionStart(event) {
             infraIDs.insert(event.sessionId)
             return
         }
@@ -121,12 +123,14 @@ final class SessionStore {
             if let start = Liveness.validatedStartTime(event.ppid, eventDate: event.date) {
                 session.pid = event.ppid
                 session.pidStartTime = start
+                session.ownerPid = Liveness.owningSessionPid(event.ppid)
             } else {
                 // Recycled or vanished pid (log replay after the original
                 // process died) — don't adopt it; with no pid, liveness
                 // falls back to transcript staleness and retires the session.
                 session.pid = nil
                 session.pidStartTime = nil
+                session.ownerPid = nil
             }
         }
         if let uuid = ITermFocus.uuid(from: event.iterm) { session.itermSessionUUID = uuid }
@@ -182,11 +186,10 @@ final class SessionStore {
         }
     }
 
-    /// Pure: true if this event announces an agent-infrastructure session by
-    /// its own start record. Forks declare themselves (`source == "fork"`);
-    /// other infrastructure is caught by the live parent-process check
-    /// (`Liveness.hasClaudeCLIParent`), which this complements during replay
-    /// when the process is already gone.
+    /// Pure: true if this event announces a fork subagent — the one kind of
+    /// session nobody is driving, and the only one that says so, via
+    /// `source == "fork"`. Every other source (`startup`, `resume`, `clear`,
+    /// `compact`) belongs to a human, wherever its process was spawned.
     static func infraSessionStart(_ event: HookEvent) -> Bool {
         event.event == "SessionStart" && event.detail == "fork"
     }
@@ -270,7 +273,8 @@ final class SessionStore {
         }
     }
 
-    private func checkLiveness() {
+    private func checkLiveness(retireOnFirstCheck: Bool = false) {
+        let strikes = retireOnFirstCheck ? 1 : 2
         for session in live {
             let alive: Bool
             if let pid = session.pid {
@@ -283,7 +287,7 @@ final class SessionStore {
                 session.deadChecks = 0
             } else {
                 session.deadChecks += 1
-                if session.deadChecks >= 2 {
+                if session.deadChecks >= strikes {
                     // Stamp with last real activity, not detection time — on
                     // app relaunch old sessions die "now" but ended earlier.
                     setStatus(session, .dead, at: session.lastEventAt, quiet: false)
@@ -291,8 +295,25 @@ final class SessionStore {
             }
         }
         resort()
+        pruneHistoryBeforeToday()
         countUntrackedProcesses()
         clearStaleShellTasks()
+    }
+
+    /// History is a "today" view, but replay reaches back a day so sessions
+    /// that outlived midnight survive an app launch. The ones that didn't get
+    /// retired by the liveness pass above, stamped with yesterday's last
+    /// activity — drop those here, along with anything the app itself watched
+    /// end before midnight while running through the night.
+    private func pruneHistoryBeforeToday() {
+        let midnight = Calendar.current.startOfDay(for: now)
+        history.removeAll { session in
+            guard let endedAt = session.endedAt, endedAt < midnight else { return false }
+            // Forget the id too: a straggling event earns a fresh row rather
+            // than resurrecting one the popover no longer lists.
+            byID[session.id] = nil
+            return true
+        }
     }
 
     /// A background shell *is* its task: the session's claude pid holding
@@ -336,13 +357,43 @@ final class SessionStore {
 
     // MARK: - Helpers
 
+    /// Sorts by urgency, then re-seats each background agent immediately after
+    /// the session that owns it. Agents don't compete for a slot of their own:
+    /// a working agent sorting above the idle terminal it belongs to reads as
+    /// two unrelated sessions in the same repo.
     private func resort() {
-        live.sort {
+        let order: (Session, Session) -> Bool = {
             if $0.status.sortRank != $1.status.sortRank {
                 return $0.status.sortRank < $1.status.sortRank
             }
             return $0.lastEventAt > $1.lastEventAt
         }
+        var owners: [Int32: Session] = [:]
+        for session in live where !session.isBackgroundAgent {
+            if let pid = session.pid { owners[pid] = session }
+        }
+        var agents: [String: [Session]] = [:]
+        var roots: [Session] = []
+        for session in live {
+            // An agent whose owner isn't tracked stands on its own — better a
+            // row with no parent than a session Argus silently swallows.
+            if session.isBackgroundAgent, let ownerPid = session.ownerPid,
+               let owner = owners[ownerPid], owner.id != session.id {
+                agents[owner.id, default: []].append(session)
+            } else {
+                roots.append(session)
+            }
+        }
+        roots.sort(by: order)
+        live = roots.flatMap { [$0] + (agents[$0.id]?.sorted(by: order) ?? []) }
+    }
+
+    /// The session a row is nested under, if its owner is on screen. Drives the
+    /// row's indent — the view must not infer nesting from `isBackgroundAgent`
+    /// alone, since an orphaned agent renders as a normal top-level row.
+    func owner(of session: Session) -> Session? {
+        guard session.isBackgroundAgent, let ownerPid = session.ownerPid else { return nil }
+        return live.first { $0.pid == ownerPid && !$0.isBackgroundAgent && $0.id != session.id }
     }
 
     private func scheduleTranscriptRefresh(_ session: Session) {

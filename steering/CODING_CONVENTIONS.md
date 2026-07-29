@@ -21,6 +21,7 @@
 ## Style
 
 - Doc comments explain *why* and the constraint the code can't show ("`contains` is deliberate: the id property may or may not carry the prefix"), not what the next line does. Match the density already in the file.
+- A doc comment asserting a *reason* goes stale as dangerously as code, and is trusted more. "A claude process parented by another claude is never a user terminal session" outlived the fact and shaped a wrong fix that discarded real sessions. Correct rationale comments in the same change that invalidates them — the rule the steering docs already get.
 - Constants that tune behaviour (`stalledAfter`, debounce, retention) are `static let`s on the type that uses them, with the reasoning in a comment. The model/pricing table lives only in `ModelCatalog`.
 
 ## Verification

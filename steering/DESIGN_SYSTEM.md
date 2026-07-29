@@ -25,6 +25,7 @@ All colors and fonts come from `Deck` (`Sources/Argus/Views/Theme.swift`) — th
 - **Two animations exist (HOLD flash, RUN breathe) and that's the budget.** Movement means "state demands attention"; ambient motion would train the eye to ignore it.
 - **The UI is deliberately dark-only** (`.environment(\.colorScheme, .dark)` on the popover) — the panel *is* the brand. A light theme is a product decision, not a drive-by patch.
 - **Strips and hints follow the established grammar:** full-width row between hairline dividers, caps label, kerning, an SF Symbol at ~9pt (exemplars: untracked-processes hint, transient alert strip).
+- **A nested row is subordinate in three ways at once:** an `└─` elbow, a deeper leading inset, and a smaller/`Deck.muted` title. Indent alone doesn't read as attachment at a glance, and a nested row that keeps full title weight competes with its owner. Its annunciator, gauge, and readouts stay full-size — the nesting says *whose* work it is, never that the work matters less.
 
 ## Decisions
 
