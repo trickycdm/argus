@@ -18,6 +18,18 @@ cp "$REPO_DIR/scripts/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
 
 codesign --force -s - "$APP"
 
+# Launch Services caches the icon per bundle id, and macOS notification banners
+# keep drawing whatever was registered first — so an icon added after the app's
+# first launch shows as a frosted placeholder in banners while Finder looks
+# fine. Dropping the record before re-registering is what actually refreshes it;
+# `-f` alone updates the path but not the notification icon. Best-effort: a
+# failure here doesn't invalidate the bundle.
+LSREGISTER=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
+if [[ -x $LSREGISTER ]]; then
+  "$LSREGISTER" -u "$APP" 2>/dev/null || true
+  "$LSREGISTER" -f "$APP" 2>/dev/null || true
+fi
+
 echo "built: $APP"
 echo "run:   open \"$APP\""
 echo "tip:   cp -R \"$APP\" /Applications/ and add as a Login Item for autostart"
